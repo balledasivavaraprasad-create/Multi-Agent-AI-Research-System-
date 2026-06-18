@@ -164,6 +164,6 @@ def research_stream():
         return jsonify({'error': str(e), 'status': 'error'}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5001))
-    print(f"📡 Starting ARCS v2.0 backend server on port {port}")
+    port = int(os.environ.get("PORT", 7860))
+    print(f"📡 Starting ARCS backend server on port {port}")
     app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False, threaded=True)

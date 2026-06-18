@@ -45,7 +45,7 @@ export default function App() {
     STAGES.forEach(s => { initialStatus[s.id] = 'idle'; });
     setStatus(initialStatus);
 
-    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:7860";
     
     try {
       const response = await fetch(`${API_BASE}/api/research-stream`, {
