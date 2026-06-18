@@ -30,4 +30,4 @@ chromadb
 cloudpickle
 typing_extensions
 flask
-flask-cors
+flask-corsgunicorn

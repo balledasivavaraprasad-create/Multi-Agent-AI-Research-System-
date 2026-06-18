@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: arcs-backend
+    env: python
+    buildCommand: pip install -r requirement.txt
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: MISTRALAI_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false

@@ -45,8 +45,10 @@ export default function App() {
     STAGES.forEach(s => { initialStatus[s.id] = 'idle'; });
     setStatus(initialStatus);
 
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
+    
     try {
-      const response = await fetch("http://localhost:5001/api/research-stream", {
+      const response = await fetch(`${API_BASE}/api/research-stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: runTopic.current }),
