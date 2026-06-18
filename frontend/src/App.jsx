@@ -110,7 +110,7 @@ export default function App() {
         borderBottom: '1px solid var(--border-base)', borderTop: 'none', borderLeft: 'none', borderRight: 'none'
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-          <img src="/logo.png" alt="Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+          <img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
           <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.05em' }}>
             ARC<span style={{ color: 'var(--accent-base)' }}>S</span>
           </span>
