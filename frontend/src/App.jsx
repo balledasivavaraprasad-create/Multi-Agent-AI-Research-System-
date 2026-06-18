@@ -46,7 +46,7 @@ export default function App() {
     setStatus(initialStatus);
 
     try {
-      const response = await fetch("http:
+      const response = await fetch("http://localhost:5001/api/research-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: runTopic.current }),
