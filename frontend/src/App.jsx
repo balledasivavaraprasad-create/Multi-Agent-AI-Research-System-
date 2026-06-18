@@ -109,9 +109,9 @@ export default function App() {
         padding: '1.25rem 2.5rem', position: 'sticky', top: 0, zIndex: 100,
         borderBottom: '1px solid var(--border-base)', borderTop: 'none', borderLeft: 'none', borderRight: 'none'
       }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-          <img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
-          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.05em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <img src="/logo.png" alt="Logo" style={{ height: '32px', width: 'auto', objectFit: 'contain', display: 'block', transform: 'translateY(-1px)' }} />
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.05em', lineHeight: 1 }}>
             ARC<span style={{ color: 'var(--accent-base)' }}>S</span>
           </span>
         </div>
