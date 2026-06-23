@@ -80,7 +80,9 @@ export default function App() {
                 setMetadata(event.metadata);
                 setPhase('done');
               } else if (event.type === "error") {
-                throw new Error(event.error);
+                setErrorMsg(event.error);
+                setPhase('error');
+                return; // Stop processing
               }
             } catch (e) {
               console.error("Parse error:", e);
