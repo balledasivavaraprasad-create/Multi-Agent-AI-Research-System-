@@ -33,6 +33,10 @@ def extract_text_content(response):
         return str(response.content)
     return str(response)
 
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({'status': 'online', 'message': 'ARCS Backend API is running successfully. Connect via Vercel frontend!'}), 200
+
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'version': '2.0.0'}), 200

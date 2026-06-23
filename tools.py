@@ -6,11 +6,14 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-
 @tool
 def web_search(query:str) -> str :
     """Search the web for recent and reliable information on a topic. Returns Titles, URLs and snippets."""
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    if not tavily_key:
+        return "Error: TAVILY_API_KEY is not set in the environment variables."
+        
+    tavily = TavilyClient(api_key=tavily_key)
     results=tavily.search(query=query,max_results=5)
 
     out = []

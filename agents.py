@@ -9,10 +9,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 mistral_api_key = os.getenv("MISTRALAI_API_KEY")
-if not mistral_api_key:
-    raise RuntimeError(
-        "Missing MISTRALAI_API_KEY in environment. Add it to .env or export it before running."
-    )
 
 llm = ChatMistralAI(
     model_name="mistral-small-2506",
