@@ -11,9 +11,11 @@ load_dotenv()
 mistral_api_key = os.getenv("MISTRALAI_API_KEY")
 
 llm = ChatMistralAI(
-    model_name="mistral-small-2506",
+    model_name="mistral-small-latest",
     api_key=mistral_api_key,
     temperature=0,
+    max_retries=2,
+    timeout=15,
 )
 
 def build_search_agent():
