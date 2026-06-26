@@ -14,4 +14,4 @@ COPY . .
 # HuggingFace requires port 7860
 EXPOSE 7860
 
-CMD ["gunicorn", "server:app", "--bind", "0.0.0.0:7860", "--timeout", "300"]
+CMD ["gunicorn", "server:app", "--bind", "0.0.0.0:7860", "--workers", "2", "--threads", "4", "--timeout", "300"]
