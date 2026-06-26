@@ -162,7 +162,11 @@ def research_stream():
                 print(traceback.format_exc())
                 yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
         
-        return Response(generate_progress(), mimetype='text/event-stream')
+        from flask import stream_with_context
+        response = Response(stream_with_context(generate_progress()), mimetype='text/event-stream')
+        response.headers['X-Accel-Buffering'] = 'no'
+        response.headers['Cache-Control'] = 'no-cache'
+        return response
         
     except Exception as e:
         return jsonify({'error': str(e), 'status': 'error'}), 500
