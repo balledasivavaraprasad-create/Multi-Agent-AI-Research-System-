@@ -9,9 +9,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-mistral_api_key = os.getenv("MISTRALAI_API_KEY")
-if not mistral_api_key:
-    print("WARNING: MISTRALAI_API_KEY not set in .env file")
+groq_api_key = os.getenv("GROQ_API_KEY")
+if not groq_api_key:
+    print("WARNING: GROQ_API_KEY not set in .env file")
 
 from agents import (
     build_search_agent, build_reader_agent,

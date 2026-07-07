@@ -16,7 +16,7 @@ Multi-Agent-System/
 ├── index.html          # Main web interface (React-based)
 ├── styles.css          # Global styles and animations
 ├── pipeline.jsx        # Original React component (reference)
-├── agents.py           # Python backend (Mistral AI agents)
+├── agents.py           # Python backend (Groq AI agents)
 ├── tools.py            # Tool definitions (web search, URL scraping)
 ├── pipeline.py         # Python pipeline execution
 ├── requirements.txt    # Python dependencies
@@ -58,7 +58,7 @@ Multi-Agent-System/
 2. **Configure Environment**:
    - Ensure `.env` contains your API keys:
      ```
-     MISTRALAI_API_KEY=your_mistral_key
+     GROQ_API_KEY=your_groq_key
      TAVILY_API_KEY=your_tavily_key
      ```
 
@@ -80,7 +80,7 @@ Multi-Agent-System/
   - Web search enabled
 
 ### For Python Backend:
-- **Mistral API Key**: https://console.mistral.ai/
+- **Groq API Key**: https://console.groq.com/
 - **Tavily Search API Key**: https://tavily.com/
 
 ## Technology Stack
@@ -94,7 +94,7 @@ Multi-Agent-System/
 ### Backend
 - Python 3.13+
 - LangChain framework
-- Mistral AI (mistral-small-2506)
+- Groq (llama-3.3-70b-versatile)
 - Tavily Search API
 - BeautifulSoup for web scraping
 
@@ -124,7 +124,7 @@ Multi-Agent-System/
 - Initial API calls may take 30-60 seconds per stage
 - Larger topics may require longer processing
 - Web search stage is typically slowest
-- All requests are made to official Anthropic/Mistral APIs
+- All requests are made to official Anthropic/Groq APIs
 
 ## Styling & Customization
 

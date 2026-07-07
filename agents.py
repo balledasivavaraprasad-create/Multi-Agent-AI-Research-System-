@@ -1,5 +1,5 @@
 from langchain.agents import create_agent
-from langchain_mistralai import ChatMistralAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from tools import web_search, scrape_url
@@ -8,14 +8,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-mistral_api_key = os.getenv("MISTRALAI_API_KEY")
+groq_api_key = os.getenv("GROQ_API_KEY")
 
-llm = ChatMistralAI(
-    model_name="mistral-small-latest",
-    api_key=mistral_api_key,
+llm = ChatGroq(
+    model_name="llama-3.3-70b-versatile",
+    api_key=groq_api_key,
     temperature=0,
     max_retries=2,
-    timeout=15,
+    timeout=60,
 )
 
 def build_search_agent():

@@ -2,8 +2,8 @@ langchain
 langchain-core
 langchain-community
 langchain-text-splitters
-langchain-mistralai
-mistralai
+langchain-groq
+groq
 python-dotenv
 tavily-python
 beautifulsoup4
