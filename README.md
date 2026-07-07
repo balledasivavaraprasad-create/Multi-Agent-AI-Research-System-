@@ -72,6 +72,15 @@ Multi-Agent-System/
    - The system will process through all 4 agents
    - Results display in the terminal
 
+### Option 3: Deploy Backend to Render
+
+You can deploy the backend Flask server to Render for free using this button:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/balledasivavaraprasad-create/Multi-Agent-AI-Research-System-)
+
+Render will read `render.yaml` to provision the service automatically and prompt you for the `GROQ_API_KEY` and `TAVILY_API_KEY` environment variables.
+
+
 ## API Keys Required
 
 ### For Web Interface (HTML):
