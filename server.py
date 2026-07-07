@@ -128,7 +128,10 @@ def research_stream():
                     critic_feedback = critic_result
                     try:
                         score_line = [line for line in critic_result.split('\n') if 'Score' in line][0]
-                        score_str = ''.join(filter(lambda x: x.isdigit() or x == '.', score_line))
+                        val_part = score_line.split(':', 1)[1] if ':' in score_line else score_line.replace('Score', '')
+                        if '/' in val_part:
+                            val_part = val_part.split('/', 1)[0]
+                        score_str = ''.join(filter(lambda x: x.isdigit() or x == '.', val_part)).strip()
                         if score_str: quality_score = float(score_str)
                     except: quality_score = 6.0
                     
