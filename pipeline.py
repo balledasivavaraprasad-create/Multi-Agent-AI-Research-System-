@@ -182,7 +182,7 @@ def run_research_pipeline(topic: str) -> dict:
         state['results']['citations'] = citation_result
         
         try:
-            num_sources = 5  # Average from multi-source research
+            num_sources = 5
             quality_avg = 7.5
             fact_check_score = state['metadata'].get('fact_check_score', 0.85) * 100
             agreement = 85

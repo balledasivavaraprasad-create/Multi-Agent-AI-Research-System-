@@ -82,7 +82,7 @@ export default function App() {
               } else if (event.type === "error") {
                 setErrorMsg(event.error);
                 setPhase('error');
-                return; // Stop processing
+                return;
               }
             } catch (e) {
               console.error("Parse error:", e);
@@ -106,8 +106,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col relative" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      
-      {}
       <header className="glass-panel" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '1.25rem 2.5rem', position: 'sticky', top: 0, zIndex: 100,
@@ -153,10 +151,7 @@ export default function App() {
         </div>
       </header>
 
-      {}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        
-        {}
         <AnimatePresence mode="wait">
           {phase === 'idle' && (
             <motion.div
@@ -167,7 +162,6 @@ export default function App() {
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem' }}
             >
-              {}
               <div style={{
                 position: 'absolute', top: '20%', width: '600px', height: '600px',
                 background: 'radial-gradient(circle, var(--accent-glow) 0%, transparent 60%)',
@@ -235,7 +229,6 @@ export default function App() {
             </motion.div>
           )}
 
-          {}
           {phase !== 'idle' && (
             <motion.div
               key="pipeline"
@@ -244,7 +237,6 @@ export default function App() {
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
               style={{ width: '100%', maxWidth: '900px', margin: '0 auto', padding: '4rem 2rem' }}
             >
-              {}
               {phase === 'error' && (
                 <div style={{
                   background: 'var(--error-dim)', border: '1px solid var(--error-base)',
@@ -256,7 +248,6 @@ export default function App() {
                 </div>
               )}
 
-              {}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '4rem' }}>
                 {STAGES.map((s, i) => {
                   const st = status[s.id] || 'idle';
@@ -276,7 +267,6 @@ export default function App() {
                         position: 'relative', overflow: 'hidden'
                       }}
                     >
-                      {}
                       {isActive && (
                         <motion.div
                           animate={{ x: ['-100%', '200%'] }}
@@ -316,7 +306,6 @@ export default function App() {
                 })}
               </div>
 
-              {}
               {phase === 'done' && results.writer && (
                 <motion.div 
                   initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
@@ -325,7 +314,6 @@ export default function App() {
                     borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
                   }}
                 >
-                  {}
                   <div style={{
                     padding: '2rem', borderBottom: '1px solid var(--border-base)',
                     background: 'linear-gradient(180deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%)'
@@ -345,7 +333,6 @@ export default function App() {
                     </h2>
                   </div>
 
-                  {}
                   <div style={{ padding: '3rem 2.5rem' }}>
                     <div className="prose">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -354,7 +341,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {}
                   {results.citations && (
                     <div style={{ padding: '2rem 2.5rem', background: 'var(--bg-base)', borderTop: '1px solid var(--border-base)' }}>
                       <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', letterSpacing: '0.1em' }}>REFERENCES & CITATIONS</h4>

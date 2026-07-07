@@ -22,7 +22,7 @@ from agents import (
 )
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 
 def extract_text_content(response):
     if isinstance(response, dict):

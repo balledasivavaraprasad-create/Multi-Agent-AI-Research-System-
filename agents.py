@@ -221,7 +221,7 @@ STAGES = [
         'label': 'Research',
         'full': 'Multi-Source Research',
         'desc': 'Gathering top-ranked sources comprehensively',
-        'chain': None,  # Uses search tools
+        'chain': None,
     },
     {
         'id': 'factcheck',
