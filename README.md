@@ -1,3 +1,13 @@
+---
+title: AdvancedMultiAgentSystem
+emoji: 🌖
+colorFrom: green
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 7860
+---
+
 # ARCS — Advanced Research & Curation System
 
 A sophisticated, multi-agent AI research pipeline with an elegant web interface. This system orchestrates specialized agents to conduct comprehensive research on any topic.
