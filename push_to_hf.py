@@ -16,7 +16,10 @@ files_to_upload = [
 print("🚀 Hugging Face Space File Uploader")
 print("This script will upload your local backend files directly to your HF Space: itzSiva1/AdvancedMultiAgentSystem\n")
 
-hf_token = getpass.getpass("Enter your Hugging Face WRITE token: ").strip()
+hf_token = os.getenv("HF_TOKEN")
+if not hf_token:
+    import getpass
+    hf_token = getpass.getpass("Enter your Hugging Face WRITE token: ").strip()
 
 if not hf_token:
     print("❌ Token cannot be empty!")
