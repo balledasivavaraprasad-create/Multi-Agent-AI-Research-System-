@@ -8,7 +8,7 @@ services:
     envVars:
       - key: PORT
         value: 7860
-      - key: GROQ_API_KEY
+      - key: GOOGLE_API_KEY
         sync: true
       - key: TAVILY_API_KEY
         sync: true

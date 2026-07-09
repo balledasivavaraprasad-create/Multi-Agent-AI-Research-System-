@@ -2,8 +2,7 @@ langchain
 langchain-core
 langchain-community
 langchain-text-splitters
-langchain-groq
-groq
+langchain-google-genai
 python-dotenv
 tavily-python
 beautifulsoup4

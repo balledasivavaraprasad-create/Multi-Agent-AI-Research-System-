@@ -46,6 +46,6 @@ try:
             print(f"⚠️ Warning: {file_name} not found locally, skipping.")
             
     print("\n🎉 All files successfully uploaded to Hugging Face Space!")
-    print("The space will now automatically build and start the Groq-enabled backend.")
+    print("The space will now automatically build and start the Gemini-enabled backend.")
 except Exception as e:
     print(f"\n❌ Error during upload: {e}")

@@ -15,12 +15,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Verify that required API keys are configured
-groq_api_key = os.getenv("GROQ_API_KEY")
+google_api_key = os.getenv("GOOGLE_API_KEY")
 tavily_api_key = os.getenv("TAVILY_API_KEY")
 
-if not groq_api_key or groq_api_key == "placeholder_key":
-    print("\n⚠️ WARNING: GROQ_API_KEY is missing or using placeholder! Agents will fail to execute.")
-    print("Please configure your GROQ_API_KEY in the '.env' file.\n")
+if not google_api_key or google_api_key == "placeholder_key":
+    print("\n⚠️ WARNING: GOOGLE_API_KEY is missing or using placeholder! Agents will fail to execute.")
+    print("Please configure your GOOGLE_API_KEY in the '.env' file.\n")
 
 if not tavily_api_key:
     print("\n⚠️ WARNING: TAVILY_API_KEY is missing! Search tools will fail to execute.")
@@ -187,8 +187,8 @@ def research_stream():
                 print(traceback.format_exc())
                 if "429" in error_msg or "rate_limit" in error_msg.lower() or "limit reached" in error_msg.lower():
                     friendly_error = (
-                        "Groq API Daily Token/Rate Limit reached. "
-                        "To bypass this, set GROQ_HEAVY_MODEL=llama-3.1-8b-instant and GROQ_LIGHT_MODEL=llama-3.1-8b-instant in your '.env' file."
+                        "Google Gemini API Rate/Daily limit reached. "
+                        "Please check your Google AI Studio console for quota limits."
                     )
                     yield f"data: {json.dumps({'type': 'error', 'error': friendly_error})}\n\n"
                 else:

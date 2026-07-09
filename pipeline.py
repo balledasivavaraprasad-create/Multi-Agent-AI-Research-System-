@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Verify that required API keys are present
-if not os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API_KEY") == "placeholder_key":
-    print("\n❌ Environment Error: GROQ_API_KEY is not set!")
-    print("Please set your GROQ_API_KEY in the '.env' file.")
+if not os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY") == "placeholder_key":
+    print("\n❌ Environment Error: GOOGLE_API_KEY is not set!")
+    print("Please set your GOOGLE_API_KEY in the '.env' file.")
     sys.exit(1)
 
 if not os.getenv("TAVILY_API_KEY"):
@@ -272,12 +272,8 @@ def run_research_pipeline(topic: str) -> dict:
         error_msg = str(e)
         print(f"\n✗ Pipeline Error: {error_msg}")
         if "429" in error_msg or "rate_limit" in error_msg.lower() or "limit reached" in error_msg.lower():
-            print("\n⚠️ NOTE: You hit a Groq API Rate or Daily Token Limit!")
-            print("To bypass this, you can switch to a lighter model (like the 8B model) by setting")
-            print("the following variables in your '.env' file:")
-            print("  GROQ_HEAVY_MODEL=llama-3.1-8b-instant")
-            print("  GROQ_LIGHT_MODEL=llama-3.1-8b-instant")
-            print("This switches the entire pipeline to the 8B model, which has much higher limits.\n")
+            print("\n⚠️ NOTE: You hit a Google Gemini API Rate or Daily Limit!")
+            print("Please check your Google AI Studio console for quota limits and billing status.\n")
         return {
             'status': 'error',
             'error': error_msg,

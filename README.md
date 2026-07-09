@@ -26,7 +26,7 @@ Multi-Agent-System/
 ├── index.html          # Main web interface (React-based)
 ├── styles.css          # Global styles and animations
 ├── pipeline.jsx        # Original React component (reference)
-├── agents.py           # Python backend (Groq AI agents)
+├── agents.py           # Python backend (Google Gemini AI agents)
 ├── tools.py            # Tool definitions (web search, URL scraping)
 ├── pipeline.py         # Python pipeline execution
 ├── requirements.txt    # Python dependencies
@@ -72,8 +72,8 @@ Multi-Agent-System/
      ```
    - Open `.env` and fill in your actual API keys:
      ```env
-     GROQ_API_KEY=your_actual_groq_key
-     TAVILY_API_KEY=your_actual_tavily_key
+      GOOGLE_API_KEY=your_actual_google_key
+      TAVILY_API_KEY=your_actual_tavily_key
      ```
 
 3. **Run Research Pipeline**:
@@ -92,7 +92,7 @@ You can deploy the backend Flask server to Render for free using this button:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/balledasivavaraprasad-create/Multi-Agent-AI-Research-System-)
 
-Render will read `render.yaml` to provision the service automatically and prompt you for the `GROQ_API_KEY` and `TAVILY_API_KEY` environment variables.
+Render will read `render.yaml` to provision the service automatically and prompt you for the `GOOGLE_API_KEY` and `TAVILY_API_KEY` environment variables.
 
 
 ## API Keys Required
@@ -103,7 +103,7 @@ Render will read `render.yaml` to provision the service automatically and prompt
   - Web search enabled
 
 ### For Python Backend:
-- **Groq API Key**: https://console.groq.com/
+- **Google API Key**: https://aistudio.google.com/
 - **Tavily Search API Key**: https://tavily.com/
 
 ## Technology Stack
@@ -117,7 +117,7 @@ Render will read `render.yaml` to provision the service automatically and prompt
 ### Backend
 - Python 3.13+
 - LangChain framework
-- Groq (llama-3.3-70b-versatile)
+- Google Gemini (gemini-1.5-flash)
 - Tavily Search API
 - BeautifulSoup for web scraping
 
@@ -147,7 +147,7 @@ Render will read `render.yaml` to provision the service automatically and prompt
 - Initial API calls may take 30-60 seconds per stage
 - Larger topics may require longer processing
 - Web search stage is typically slowest
-- All requests are made to official Anthropic/Groq APIs
+- All requests are made to official Anthropic/Google APIs
 
 ## Styling & Customization
 

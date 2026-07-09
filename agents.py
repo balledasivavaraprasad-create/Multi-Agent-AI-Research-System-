@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 try:
     from langchain_core.prompts import ChatPromptTemplate
     from langchain_core.output_parsers import StrOutputParser
-    from langchain_groq import ChatGroq
+    from langchain_google_genai import ChatGoogleGenerativeAI
 except ImportError as e:
     print(f"\n❌ Error importing dependencies: {str(e)}")
     print("Please ensure you are running in the virtual environment.")
@@ -39,45 +39,31 @@ from tools import web_search, scrape_url
 
 load_dotenv()
 
-groq_api_key = os.getenv("GROQ_API_KEY")
-if not groq_api_key or groq_api_key.strip() == "":
-    print("\n⚠️ WARNING: GROQ_API_KEY is not set or is empty in your environment variables.")
-    print("Please copy .env.example to .env and configure your GROQ_API_KEY.")
+google_api_key = os.getenv("GOOGLE_API_KEY")
+if not google_api_key or google_api_key.strip() == "":
+    print("\n⚠️ WARNING: GOOGLE_API_KEY is not set or is empty in your environment variables.")
+    print("Please copy .env.example to .env and configure your GOOGLE_API_KEY.")
     print("Using 'placeholder_key' fallback to prevent import crashes.\n")
-    groq_api_key = "placeholder_key"
+    google_api_key = "placeholder_key"
 
-# Configure model names from environment variables with fallbacks
-heavy_model = os.getenv("GROQ_HEAVY_MODEL") or "llama-3.3-70b-versatile"
-light_model = os.getenv("GROQ_LIGHT_MODEL") or "llama-3.1-8b-instant"
-
-llm_heavy = ChatGroq(
-    model_name=heavy_model,
-    api_key=groq_api_key,
+# Initialize Google Gemini 2.5 Flash model
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    google_api_key=google_api_key,
     temperature=0,
     max_retries=2,
     timeout=60,
 )
-
-llm_light = ChatGroq(
-    model_name=light_model,
-    api_key=groq_api_key,
-    temperature=0,
-    max_retries=2,
-    timeout=60,
-)
-
-# Automatic fallback to light model if heavy model fails (e.g. daily token rate limit)
-llm_heavy_with_fallback = llm_heavy.with_fallbacks([llm_light])
 
 def build_search_agent():
     return create_agent(
-        model=llm_light,
+        model=llm,
         tools=[web_search]
     )
 
 def build_reader_agent():
     return create_agent(
-        model=llm_light,
+        model=llm,
         tools=[scrape_url]
     )
 
@@ -99,7 +85,7 @@ writer_prompt = ChatPromptTemplate.from_messages([
      Be detailed, factual and professional.""")
 ])
 
-writer_chain = writer_prompt | llm_heavy_with_fallback | StrOutputParser()
+writer_chain = writer_prompt | llm | StrOutputParser()
 
 critic_prompt = ChatPromptTemplate.from_messages([
     ("system","You are a sharp and constructive research critic. Be brutally honest and specific"),
@@ -126,7 +112,7 @@ critic_prompt = ChatPromptTemplate.from_messages([
      ..."""),
 ])
 
-critic_chain = critic_prompt | llm_light | StrOutputParser()
+critic_chain = critic_prompt | llm | StrOutputParser()
 
 
 planner_prompt = ChatPromptTemplate.from_messages([
@@ -141,7 +127,7 @@ Generate focused research questions that will structure a comprehensive research
 
 Each question should be specific, measurable, and cover different aspects of the topic.""")
 ])
-planner_chain = planner_prompt | llm_light | StrOutputParser()
+planner_chain = planner_prompt | llm | StrOutputParser()
 
 fact_checker_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a rigorous fact-checker. Identify unsupported claims, verify statistics, check dates, and assess claim reliability."),
@@ -157,7 +143,7 @@ Provide:
 
 Be specific and cite what makes claims reliable or unreliable.""")
 ])
-fact_checker_chain = fact_checker_prompt | llm_light | StrOutputParser()
+fact_checker_chain = fact_checker_prompt | llm | StrOutputParser()
 
 contrarian_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a contrarian researcher. Challenge assumptions, find contradictions, and present alternative viewpoints."),
@@ -174,7 +160,7 @@ Provide:
 
 Be specific and constructive.""")
 ])
-contrarian_chain = contrarian_prompt | llm_light | StrOutputParser()
+contrarian_chain = contrarian_prompt | llm | StrOutputParser()
 
 citation_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a citation expert. Format all sources properly and create a professional reference list."),
@@ -191,7 +177,7 @@ Also provide:
 - Primary vs secondary breakdown
 - Source quality distribution""")
 ])
-citation_chain = citation_prompt | llm_light | StrOutputParser()
+citation_chain = citation_prompt | llm | StrOutputParser()
 
 multi_reader_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an expert multi-source analyst. Synthesize insights from multiple sources, identify consensus and conflicts."),
@@ -208,7 +194,7 @@ Provide:
 
 Link insights to specific sources.""")
 ])
-multi_reader_chain = multi_reader_prompt | llm_heavy_with_fallback | StrOutputParser()
+multi_reader_chain = multi_reader_prompt | llm | StrOutputParser()
 
 confidence_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a research quality assessor. Calculate confidence based on multiple factors."),
@@ -231,7 +217,7 @@ Provide:
 
 Formula: (sources*0.25 + quality*0.25 + facts*0.20 + agreement*0.15 + freshness*0.10) / 10""")
 ])
-confidence_chain = confidence_prompt | llm_light | StrOutputParser()
+confidence_chain = confidence_prompt | llm | StrOutputParser()
 
 
 revision_prompt = ChatPromptTemplate.from_messages([
@@ -254,7 +240,7 @@ Revise the report to address the feedback while maintaining factual integrity. F
 
 Provide the revised report.""")
 ])
-revision_chain = revision_prompt | llm_heavy_with_fallback | StrOutputParser()
+revision_chain = revision_prompt | llm | StrOutputParser()
 
 
 STAGES = [
