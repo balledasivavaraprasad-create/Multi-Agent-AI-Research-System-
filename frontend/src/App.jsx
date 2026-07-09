@@ -379,8 +379,6 @@ export default function App() {
         </div>
         <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
           <span style={{ color: 'var(--text-tertiary)' }}>Advanced Research & Curation System</span>
-          <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--border-base)' }} />
-          <span>v2.0.0</span>
         </div>
       </footer>
     </div>
