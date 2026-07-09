@@ -269,10 +269,18 @@ def run_research_pipeline(topic: str) -> dict:
         return final_output
         
     except Exception as e:
-        print(f"\n✗ Pipeline Error: {str(e)}")
+        error_msg = str(e)
+        print(f"\n✗ Pipeline Error: {error_msg}")
+        if "429" in error_msg or "rate_limit" in error_msg.lower() or "limit reached" in error_msg.lower():
+            print("\n⚠️ NOTE: You hit a Groq API Rate or Daily Token Limit!")
+            print("To bypass this, you can switch to a lighter model (like the 8B model) by setting")
+            print("the following variables in your '.env' file:")
+            print("  GROQ_HEAVY_MODEL=llama-3.1-8b-instant")
+            print("  GROQ_LIGHT_MODEL=llama-3.1-8b-instant")
+            print("This switches the entire pipeline to the 8B model, which has much higher limits.\n")
         return {
             'status': 'error',
-            'error': str(e),
+            'error': error_msg,
             'partial_results': state['results'],
             'metadata': state['metadata']
         }

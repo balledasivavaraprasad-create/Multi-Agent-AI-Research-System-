@@ -182,9 +182,17 @@ def research_stream():
                 yield f"data: {json.dumps({'type': 'complete', 'results': state['results'], 'metadata': state['metadata']})}\n\n"
 
             except Exception as e:
-                print(f"Pipeline error: {str(e)}")
+                error_msg = str(e)
+                print(f"Pipeline error: {error_msg}")
                 print(traceback.format_exc())
-                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                if "429" in error_msg or "rate_limit" in error_msg.lower() or "limit reached" in error_msg.lower():
+                    friendly_error = (
+                        "Groq API Daily Token/Rate Limit reached. "
+                        "To bypass this, set GROQ_HEAVY_MODEL=llama-3.1-8b-instant and GROQ_LIGHT_MODEL=llama-3.1-8b-instant in your '.env' file."
+                    )
+                    yield f"data: {json.dumps({'type': 'error', 'error': friendly_error})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'error': error_msg})}\n\n"
         
         from flask import stream_with_context
         response = Response(stream_with_context(generate_progress()), mimetype='text/event-stream')

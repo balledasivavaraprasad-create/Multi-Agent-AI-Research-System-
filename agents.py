@@ -46,8 +46,12 @@ if not groq_api_key or groq_api_key.strip() == "":
     print("Using 'placeholder_key' fallback to prevent import crashes.\n")
     groq_api_key = "placeholder_key"
 
+# Configure model names from environment variables with fallbacks
+heavy_model = os.getenv("GROQ_HEAVY_MODEL") or "llama-3.3-70b-versatile"
+light_model = os.getenv("GROQ_LIGHT_MODEL") or "llama-3.1-8b-instant"
+
 llm_heavy = ChatGroq(
-    model_name="llama-3.3-70b-versatile",
+    model_name=heavy_model,
     api_key=groq_api_key,
     temperature=0,
     max_retries=2,
@@ -55,7 +59,7 @@ llm_heavy = ChatGroq(
 )
 
 llm_light = ChatGroq(
-    model_name="llama-3.1-8b-instant",
+    model_name=light_model,
     api_key=groq_api_key,
     temperature=0,
     max_retries=2,
