@@ -66,6 +66,9 @@ llm_light = ChatGroq(
     timeout=60,
 )
 
+# Automatic fallback to light model if heavy model fails (e.g. daily token rate limit)
+llm_heavy_with_fallback = llm_heavy.with_fallbacks([llm_light])
+
 def build_search_agent():
     return create_agent(
         model=llm_light,
@@ -96,7 +99,7 @@ writer_prompt = ChatPromptTemplate.from_messages([
      Be detailed, factual and professional.""")
 ])
 
-writer_chain = writer_prompt | llm_heavy | StrOutputParser()
+writer_chain = writer_prompt | llm_heavy_with_fallback | StrOutputParser()
 
 critic_prompt = ChatPromptTemplate.from_messages([
     ("system","You are a sharp and constructive research critic. Be brutally honest and specific"),
@@ -205,7 +208,7 @@ Provide:
 
 Link insights to specific sources.""")
 ])
-multi_reader_chain = multi_reader_prompt | llm_heavy | StrOutputParser()
+multi_reader_chain = multi_reader_prompt | llm_heavy_with_fallback | StrOutputParser()
 
 confidence_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a research quality assessor. Calculate confidence based on multiple factors."),
@@ -251,7 +254,7 @@ Revise the report to address the feedback while maintaining factual integrity. F
 
 Provide the revised report.""")
 ])
-revision_chain = revision_prompt | llm_heavy | StrOutputParser()
+revision_chain = revision_prompt | llm_heavy_with_fallback | StrOutputParser()
 
 
 STAGES = [
