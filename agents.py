@@ -1,14 +1,50 @@
-from langchain.agents import create_agent
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from tools import web_search, scrape_url
+# Copyright (c) 2026 Siva. All rights reserved.
+# This software and associated documentation files are the proprietary property of Siva.
+# Unauthorized copying, distribution, or modification is strictly prohibited.
+
 import os
+import sys
 from dotenv import load_dotenv
+
+# Try importing LangChain modules, providing clean errors if not installed
+try:
+    from langchain_core.prompts import ChatPromptTemplate
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_groq import ChatGroq
+except ImportError as e:
+    print(f"\n❌ Error importing dependencies: {str(e)}")
+    print("Please ensure you are running in the virtual environment.")
+    print("Run: source .venv/bin/activate (on macOS/Linux) or .venv\\Scripts\\activate (on Windows)")
+    print("Then install requirements: pip install -r requirements.txt\n")
+    sys.exit(1)
+
+try:
+    from langchain.agents import create_agent
+except ImportError:
+    try:
+        from langgraph.prebuilt import create_react_agent as create_agent
+    except ImportError:
+        def create_agent(model, tools, **kwargs):
+            try:
+                from langgraph.prebuilt import create_react_agent
+                return create_react_agent(model, tools, **kwargs)
+            except ImportError:
+                raise ImportError(
+                    "Could not import either 'create_agent' from 'langchain.agents' "
+                    "or 'create_react_agent' from 'langgraph.prebuilt'. "
+                    "Please update your packages: pip install -U langchain langgraph"
+                )
+
+from tools import web_search, scrape_url
 
 load_dotenv()
 
-groq_api_key = os.getenv("GROQ_API_KEY") or "placeholder_key"
+groq_api_key = os.getenv("GROQ_API_KEY")
+if not groq_api_key or groq_api_key.strip() == "":
+    print("\n⚠️ WARNING: GROQ_API_KEY is not set or is empty in your environment variables.")
+    print("Please copy .env.example to .env and configure your GROQ_API_KEY.")
+    print("Using 'placeholder_key' fallback to prevent import crashes.\n")
+    groq_api_key = "placeholder_key"
 
 llm = ChatGroq(
     model_name="llama-3.3-70b-versatile",

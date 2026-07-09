@@ -1,4 +1,8 @@
 
+# Copyright (c) 2026 Siva. All rights reserved.
+# This software and associated documentation files are the proprietary property of Siva.
+# Unauthorized copying, distribution, or modification is strictly prohibited.
+
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import os
@@ -9,9 +13,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Verify that required API keys are configured
 groq_api_key = os.getenv("GROQ_API_KEY")
-if not groq_api_key:
-    print("WARNING: GROQ_API_KEY not set in .env file")
+tavily_api_key = os.getenv("TAVILY_API_KEY")
+
+if not groq_api_key or groq_api_key == "placeholder_key":
+    print("\n⚠️ WARNING: GROQ_API_KEY is missing or using placeholder! Agents will fail to execute.")
+    print("Please configure your GROQ_API_KEY in the '.env' file.\n")
+
+if not tavily_api_key:
+    print("\n⚠️ WARNING: TAVILY_API_KEY is missing! Search tools will fail to execute.")
+    print("Please configure your TAVILY_API_KEY in the '.env' file.\n")
 
 from agents import (
     build_search_agent, build_reader_agent,

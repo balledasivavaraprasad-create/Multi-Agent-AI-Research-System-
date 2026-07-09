@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Siva. All rights reserved.
+// This software and associated documentation files are the proprietary property of Siva.
+// Unauthorized copying, distribution, or modification is strictly prohibited.
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -357,6 +361,28 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      <footer style={{
+        padding: '2rem 2.5rem',
+        borderTop: '1px solid var(--border-base)',
+        background: 'var(--bg-surface)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontFamily: 'var(--font-sans)',
+        fontSize: '0.85rem',
+        color: 'var(--text-secondary)',
+        zIndex: 10
+      }}>
+        <div>
+          © 2026 <span style={{ color: 'var(--accent-base)', fontWeight: 500 }}>Siva</span>. All Rights Reserved.
+        </div>
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+          <span style={{ color: 'var(--text-tertiary)' }}>Advanced Research & Curation System</span>
+          <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--border-base)' }} />
+          <span>v2.0.0</span>
+        </div>
+      </footer>
     </div>
   );
 }

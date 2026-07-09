@@ -1,4 +1,27 @@
 
+# Copyright (c) 2026 Siva. All rights reserved.
+# This software and associated documentation files are the proprietary property of Siva.
+# Unauthorized copying, distribution, or modification is strictly prohibited.
+
+import os
+import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Verify that required API keys are present
+if not os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API_KEY") == "placeholder_key":
+    print("\n❌ Environment Error: GROQ_API_KEY is not set!")
+    print("Please set your GROQ_API_KEY in the '.env' file.")
+    sys.exit(1)
+
+if not os.getenv("TAVILY_API_KEY"):
+    print("\n❌ Environment Error: TAVILY_API_KEY is not set!")
+    print("Please set your TAVILY_API_KEY in the '.env' file.")
+    sys.exit(1)
+
+import json
+from datetime import datetime
 from agents import (
     build_search_agent, build_reader_agent,
     planner_chain, fact_checker_chain, contrarian_chain,
@@ -6,8 +29,6 @@ from agents import (
     writer_chain, critic_chain, revision_chain,
     STAGES
 )
-import json
-from datetime import datetime
 
 def extract_text_content(response):
     if isinstance(response, dict):

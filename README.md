@@ -8,9 +8,9 @@ pinned: false
 app_port: 7860
 ---
 
-# ARCS — Advanced Research & Curation System
+# ARCS — Siva's Advanced Research & Curation System
 
-A sophisticated, multi-agent AI research pipeline with an elegant web interface. This system orchestrates specialized agents to conduct comprehensive research on any topic.
+A sophisticated, proprietary multi-agent AI research pipeline with an elegant web interface, created and maintained by **Siva**. This system orchestrates specialized agents to conduct comprehensive research on any topic.
 
 ## Features
 
@@ -66,10 +66,14 @@ Multi-Agent-System/
    ```
 
 2. **Configure Environment**:
-   - Ensure `.env` contains your API keys:
+   - Copy the `.env.example` template to `.env`:
+     ```bash
+     cp .env.example .env
      ```
-     GROQ_API_KEY=your_groq_key
-     TAVILY_API_KEY=your_tavily_key
+   - Open `.env` and fill in your actual API keys:
+     ```env
+     GROQ_API_KEY=your_actual_groq_key
+     TAVILY_API_KEY=your_actual_tavily_key
      ```
 
 3. **Run Research Pipeline**:
@@ -181,8 +185,10 @@ Edit `styles.css` to customize colors and animations.
 
 ## License
 
-Licensed under Apache License 2.0
-Copyright © 2024 ARCS Contributors
+Proprietary — All Rights Reserved.
+Copyright © 2026 Siva.
+
+This software and all associated documentation files are the private, proprietary property of Siva. Unauthorized copying, distribution, modification, or usage of this codebase is strictly prohibited.
 
 ## Support
 
