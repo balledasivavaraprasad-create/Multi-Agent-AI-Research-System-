@@ -46,8 +46,16 @@ if not groq_api_key or groq_api_key.strip() == "":
     print("Using 'placeholder_key' fallback to prevent import crashes.\n")
     groq_api_key = "placeholder_key"
 
-llm = ChatGroq(
+llm_heavy = ChatGroq(
     model_name="llama-3.3-70b-versatile",
+    api_key=groq_api_key,
+    temperature=0,
+    max_retries=2,
+    timeout=60,
+)
+
+llm_light = ChatGroq(
+    model_name="llama-3.1-8b-instant",
     api_key=groq_api_key,
     temperature=0,
     max_retries=2,
@@ -56,13 +64,13 @@ llm = ChatGroq(
 
 def build_search_agent():
     return create_agent(
-        model=llm,
+        model=llm_light,
         tools=[web_search]
     )
 
 def build_reader_agent():
     return create_agent(
-        model=llm,
+        model=llm_light,
         tools=[scrape_url]
     )
 
@@ -84,7 +92,7 @@ writer_prompt = ChatPromptTemplate.from_messages([
      Be detailed, factual and professional.""")
 ])
 
-writer_chain = writer_prompt | llm | StrOutputParser()
+writer_chain = writer_prompt | llm_heavy | StrOutputParser()
 
 critic_prompt = ChatPromptTemplate.from_messages([
     ("system","You are a sharp and constructive research critic. Be brutally honest and specific"),
@@ -111,7 +119,7 @@ critic_prompt = ChatPromptTemplate.from_messages([
      ..."""),
 ])
 
-critic_chain = critic_prompt | llm | StrOutputParser()
+critic_chain = critic_prompt | llm_light | StrOutputParser()
 
 
 planner_prompt = ChatPromptTemplate.from_messages([
@@ -126,7 +134,7 @@ Generate focused research questions that will structure a comprehensive research
 
 Each question should be specific, measurable, and cover different aspects of the topic.""")
 ])
-planner_chain = planner_prompt | llm | StrOutputParser()
+planner_chain = planner_prompt | llm_light | StrOutputParser()
 
 fact_checker_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a rigorous fact-checker. Identify unsupported claims, verify statistics, check dates, and assess claim reliability."),
@@ -142,7 +150,7 @@ Provide:
 
 Be specific and cite what makes claims reliable or unreliable.""")
 ])
-fact_checker_chain = fact_checker_prompt | llm | StrOutputParser()
+fact_checker_chain = fact_checker_prompt | llm_light | StrOutputParser()
 
 contrarian_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a contrarian researcher. Challenge assumptions, find contradictions, and present alternative viewpoints."),
@@ -159,7 +167,7 @@ Provide:
 
 Be specific and constructive.""")
 ])
-contrarian_chain = contrarian_prompt | llm | StrOutputParser()
+contrarian_chain = contrarian_prompt | llm_light | StrOutputParser()
 
 citation_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a citation expert. Format all sources properly and create a professional reference list."),
@@ -176,7 +184,7 @@ Also provide:
 - Primary vs secondary breakdown
 - Source quality distribution""")
 ])
-citation_chain = citation_prompt | llm | StrOutputParser()
+citation_chain = citation_prompt | llm_light | StrOutputParser()
 
 multi_reader_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an expert multi-source analyst. Synthesize insights from multiple sources, identify consensus and conflicts."),
@@ -193,7 +201,7 @@ Provide:
 
 Link insights to specific sources.""")
 ])
-multi_reader_chain = multi_reader_prompt | llm | StrOutputParser()
+multi_reader_chain = multi_reader_prompt | llm_heavy | StrOutputParser()
 
 confidence_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a research quality assessor. Calculate confidence based on multiple factors."),
@@ -216,7 +224,7 @@ Provide:
 
 Formula: (sources*0.25 + quality*0.25 + facts*0.20 + agreement*0.15 + freshness*0.10) / 10""")
 ])
-confidence_chain = confidence_prompt | llm | StrOutputParser()
+confidence_chain = confidence_prompt | llm_light | StrOutputParser()
 
 
 revision_prompt = ChatPromptTemplate.from_messages([
@@ -239,7 +247,7 @@ Revise the report to address the feedback while maintaining factual integrity. F
 
 Provide the revised report.""")
 ])
-revision_chain = revision_prompt | llm | StrOutputParser()
+revision_chain = revision_prompt | llm_heavy | StrOutputParser()
 
 
 STAGES = [

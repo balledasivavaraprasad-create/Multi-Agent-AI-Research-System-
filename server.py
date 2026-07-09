@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import os
 import json
+import time
 import traceback
 from datetime import datetime
 from dotenv import load_dotenv
@@ -92,16 +93,18 @@ def research_stream():
                 yield yield_event('stage_completed', 'planner', result=research_questions)
 
                 yield yield_event('stage_started', 'research', num=2)
+                time.sleep(1.5)
                 search_agent = build_search_agent()
                 search_result = search_agent.invoke({
-                    "messages": [("user", f"Find recent, reliable sources about {topic}. Provide top 5-7 sources with details. Research Questions:\n{research_questions[:500]}")]
+                    "messages": [("user", f"Find recent, reliable sources about {topic}. Provide top 5-7 sources with details. Research Questions:\n{research_questions[:300]}")]
                 })
                 search_content = extract_text_content(search_result)
                 state['results']['research'] = search_content
                 yield yield_event('stage_completed', 'research', result=search_content)
 
                 yield yield_event('stage_started', 'factcheck', num=3)
-                fact_check_result = fact_checker_chain.invoke({"content": search_content[:2000]})
+                time.sleep(1.5)
+                fact_check_result = fact_checker_chain.invoke({"content": search_content[:1200]})
                 state['results']['factcheck'] = fact_check_result
                 try:
                     if 'reliability score' in fact_check_result.lower():
@@ -112,17 +115,20 @@ def research_stream():
                 yield yield_event('stage_completed', 'factcheck', result=fact_check_result)
 
                 yield yield_event('stage_started', 'analysis', num=4)
-                analysis_result = multi_reader_chain.invoke({"topic": topic, "multiple_sources": search_content[:2000]})
+                time.sleep(1.5)
+                analysis_result = multi_reader_chain.invoke({"topic": topic, "multiple_sources": search_content[:1200]})
                 state['results']['analysis'] = analysis_result
                 yield yield_event('stage_completed', 'analysis', result=analysis_result)
 
                 yield yield_event('stage_started', 'contrarian', num=5)
-                contrarian_result = contrarian_chain.invoke({"topic": topic, "analysis": analysis_result[:1500]})
+                time.sleep(1.5)
+                contrarian_result = contrarian_chain.invoke({"topic": topic, "analysis": analysis_result[:800]})
                 state['results']['contrarian'] = contrarian_result
                 yield yield_event('stage_completed', 'contrarian', result=contrarian_result)
 
                 yield yield_event('stage_started', 'writer', num=6)
-                research_combined = f"Search Results:\n{search_content[:800]}\n\nAnalysis:\n{analysis_result[:800]}\n\nAlternative Perspectives:\n{contrarian_result[:400]}"
+                time.sleep(1.5)
+                research_combined = f"Search Results:\n{search_content[:600]}\n\nAnalysis:\n{analysis_result[:600]}\n\nAlternative Perspectives:\n{contrarian_result[:300]}"
                 writer_result = writer_chain.invoke({"topic": topic, "research": research_combined})
                 state['results']['writer'] = writer_result
                 yield yield_event('stage_completed', 'writer', result=writer_result)
@@ -136,7 +142,8 @@ def research_stream():
                 
                 while current_iteration < max_iterations:
                     current_iteration += 1
-                    critic_result = critic_chain.invoke({"report": current_report})
+                    time.sleep(1.5)
+                    critic_result = critic_chain.invoke({"report": current_report[:1500]})
                     critic_feedback = critic_result
                     try:
                         score_line = [line for line in critic_result.split('\n') if 'Score' in line][0]
@@ -150,9 +157,10 @@ def research_stream():
                     if quality_score >= 8.0:
                         break
                     if current_iteration < max_iterations:
+                        time.sleep(1.5)
                         current_report = revision_chain.invoke({
-                            "original_report": current_report,
-                            "criticism": critic_feedback,
+                            "original_report": current_report[:1500],
+                            "criticism": critic_feedback[:800],
                             "current_score": quality_score,
                         })
 
@@ -162,7 +170,8 @@ def research_stream():
                 yield yield_event('stage_completed', 'critic_loop', result=critic_feedback)
 
                 yield yield_event('stage_started', 'confidence', num=8)
-                citation_result = citation_chain.invoke({"sources_data": f"{search_content[:1000]}"})
+                time.sleep(1.5)
+                citation_result = citation_chain.invoke({"sources_data": f"{search_content[:800]}"})
                 state['results']['citations'] = citation_result
                 try:
                     confidence = ((5 / 7) * 0.25 + (7.5 / 10) * 0.25 + (state['metadata'].get('fact_check_score', 0.85)) * 0.20 + (85 / 100) * 0.15 + (90 / 100) * 0.10) * 10

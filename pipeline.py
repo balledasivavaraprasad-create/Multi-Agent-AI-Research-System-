@@ -5,6 +5,7 @@
 
 import os
 import sys
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -60,13 +61,14 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 2: RESEARCH - Gathering multi-source data")
         print("="*60)
         
+        time.sleep(1.5)
         search_agent = build_search_agent()
         search_result = search_agent.invoke({
             "messages": [(
                 "user",
                 f"Find recent, reliable sources about {topic}. "
                 f"Provide top 5-7 sources with details. "
-                f"Research Questions:\n{research_questions[:500]}"
+                f"Research Questions:\n{research_questions[:300]}"
             )],
         })
         
@@ -78,8 +80,9 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 3: VERIFICATION - Fact checking claims")
         print("="*60)
         
+        time.sleep(1.5)
         fact_check_result = fact_checker_chain.invoke({
-            "content": search_content[:2000]
+            "content": search_content[:1200]
         })
         
         state['results']['fact_check'] = fact_check_result
@@ -98,9 +101,10 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 4: ANALYSIS - Multi-source insight extraction")
         print("="*60)
         
+        time.sleep(1.5)
         analysis_result = multi_reader_chain.invoke({
             "topic": topic,
-            "multiple_sources": search_content[:2000]
+            "multiple_sources": search_content[:1200]
         })
         
         state['results']['analysis'] = analysis_result
@@ -110,9 +114,10 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 5: PERSPECTIVE - Contrarian analysis")
         print("="*60)
         
+        time.sleep(1.5)
         contrarian_result = contrarian_chain.invoke({
             "topic": topic,
-            "analysis": analysis_result[:1500]
+            "analysis": analysis_result[:800]
         })
         
         state['results']['contrarian'] = contrarian_result
@@ -123,11 +128,12 @@ def run_research_pipeline(topic: str) -> dict:
         print("="*60)
         
         research_combined = (
-            f"Search Results:\n{search_content[:800]}\n\n"
-            f"Analysis:\n{analysis_result[:800]}\n\n"
-            f"Alternative Perspectives:\n{contrarian_result[:400]}"
+            f"Search Results:\n{search_content[:600]}\n\n"
+            f"Analysis:\n{analysis_result[:600]}\n\n"
+            f"Alternative Perspectives:\n{contrarian_result[:300]}"
         )
         
+        time.sleep(1.5)
         writer_result = writer_chain.invoke({
             "topic": topic,
             "research": research_combined,
@@ -151,8 +157,9 @@ def run_research_pipeline(topic: str) -> dict:
             current_iteration += 1
             print(f"\n  [Iteration {current_iteration}/{max_iterations}]")
             
+            time.sleep(1.5)
             critic_result = critic_chain.invoke({
-                "report": current_report
+                "report": current_report[:1500]
             })
             
             critic_feedback = critic_result
@@ -177,9 +184,10 @@ def run_research_pipeline(topic: str) -> dict:
             if current_iteration < max_iterations:
                 print(f"  Revising report (score {quality_score}/10 < 8.0)...")
                 
+                time.sleep(1.5)
                 revised = revision_chain.invoke({
-                    "original_report": current_report,
-                    "criticism": critic_feedback,
+                    "original_report": current_report[:1500],
+                    "criticism": critic_feedback[:800],
                     "current_score": quality_score,
                 })
                 
@@ -197,8 +205,9 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 8: CONFIDENCE - Citations & quality score")
         print("="*60)
         
-        sources_data = f"{search_content[:1000]}"
+        sources_data = f"{search_content[:800]}"
         
+        time.sleep(1.5)
         citation_result = citation_chain.invoke({
             "sources_data": sources_data
         })
