@@ -30,6 +30,8 @@ from agents import (
     writer_chain, critic_chain, revision_chain,
     STAGES
 )
+# Delay between API requests to satisfy Gemini 15 RPM (Requests Per Minute) free tier limit
+REQUEST_DELAY = 4.5
 
 def extract_text_content(response):
     if isinstance(response, dict):
@@ -61,7 +63,7 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 2: RESEARCH - Gathering multi-source data")
         print("="*60)
         
-        time.sleep(1.5)
+        time.sleep(REQUEST_DELAY)
         search_agent = build_search_agent()
         search_result = search_agent.invoke({
             "messages": [(
@@ -80,7 +82,7 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 3: VERIFICATION - Fact checking claims")
         print("="*60)
         
-        time.sleep(1.5)
+        time.sleep(REQUEST_DELAY)
         fact_check_result = fact_checker_chain.invoke({
             "content": search_content[:1200]
         })
@@ -101,7 +103,7 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 4: ANALYSIS - Multi-source insight extraction")
         print("="*60)
         
-        time.sleep(1.5)
+        time.sleep(REQUEST_DELAY)
         analysis_result = multi_reader_chain.invoke({
             "topic": topic,
             "multiple_sources": search_content[:1200]
@@ -114,7 +116,7 @@ def run_research_pipeline(topic: str) -> dict:
         print("STAGE 5: PERSPECTIVE - Contrarian analysis")
         print("="*60)
         
-        time.sleep(1.5)
+        time.sleep(REQUEST_DELAY)
         contrarian_result = contrarian_chain.invoke({
             "topic": topic,
             "analysis": analysis_result[:800]
@@ -133,7 +135,7 @@ def run_research_pipeline(topic: str) -> dict:
             f"Alternative Perspectives:\n{contrarian_result[:300]}"
         )
         
-        time.sleep(1.5)
+        time.sleep(REQUEST_DELAY)
         writer_result = writer_chain.invoke({
             "topic": topic,
             "research": research_combined,
@@ -157,7 +159,7 @@ def run_research_pipeline(topic: str) -> dict:
             current_iteration += 1
             print(f"\n  [Iteration {current_iteration}/{max_iterations}]")
             
-            time.sleep(1.5)
+            time.sleep(REQUEST_DELAY)
             critic_result = critic_chain.invoke({
                 "report": current_report[:1500]
             })
@@ -184,7 +186,7 @@ def run_research_pipeline(topic: str) -> dict:
             if current_iteration < max_iterations:
                 print(f"  Revising report (score {quality_score}/10 < 8.0)...")
                 
-                time.sleep(1.5)
+                time.sleep(REQUEST_DELAY)
                 revised = revision_chain.invoke({
                     "original_report": current_report[:1500],
                     "criticism": critic_feedback[:800],
@@ -207,7 +209,7 @@ def run_research_pipeline(topic: str) -> dict:
         
         sources_data = f"{search_content[:800]}"
         
-        time.sleep(1.5)
+        time.sleep(REQUEST_DELAY)
         citation_result = citation_chain.invoke({
             "sources_data": sources_data
         })

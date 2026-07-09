@@ -46,14 +46,29 @@ if not google_api_key or google_api_key.strip() == "":
     print("Using 'placeholder_key' fallback to prevent import crashes.\n")
     google_api_key = "placeholder_key"
 
-# Initialize Google Gemini 2.5 Flash model
+# Initialize Google Gemini model with automatic fallbacks to bypass daily request limits on free keys
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=google_api_key,
     temperature=0,
     max_retries=2,
     timeout=60,
-)
+).with_fallbacks([
+    ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        google_api_key=google_api_key,
+        temperature=0,
+        max_retries=2,
+        timeout=60,
+    ),
+    ChatGoogleGenerativeAI(
+        model="gemini-flash-lite-latest",
+        google_api_key=google_api_key,
+        temperature=0,
+        max_retries=2,
+        timeout=60,
+    )
+])
 
 def build_search_agent():
     return create_agent(

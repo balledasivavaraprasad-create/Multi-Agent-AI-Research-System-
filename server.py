@@ -34,6 +34,9 @@ from agents import (
     STAGES, STAGE_CONFIGS
 )
 
+# Delay between API requests to satisfy Gemini 15 RPM (Requests Per Minute) free tier limit
+REQUEST_DELAY = 4.5
+
 app = Flask(__name__)
 CORS(app)
 
@@ -93,7 +96,7 @@ def research_stream():
                 yield yield_event('stage_completed', 'planner', result=research_questions)
 
                 yield yield_event('stage_started', 'research', num=2)
-                time.sleep(1.5)
+                time.sleep(REQUEST_DELAY)
                 search_agent = build_search_agent()
                 search_result = search_agent.invoke({
                     "messages": [("user", f"Find recent, reliable sources about {topic}. Provide top 5-7 sources with details. Research Questions:\n{research_questions[:300]}")]
@@ -103,7 +106,7 @@ def research_stream():
                 yield yield_event('stage_completed', 'research', result=search_content)
 
                 yield yield_event('stage_started', 'factcheck', num=3)
-                time.sleep(1.5)
+                time.sleep(REQUEST_DELAY)
                 fact_check_result = fact_checker_chain.invoke({"content": search_content[:1200]})
                 state['results']['factcheck'] = fact_check_result
                 try:
@@ -115,19 +118,19 @@ def research_stream():
                 yield yield_event('stage_completed', 'factcheck', result=fact_check_result)
 
                 yield yield_event('stage_started', 'analysis', num=4)
-                time.sleep(1.5)
+                time.sleep(REQUEST_DELAY)
                 analysis_result = multi_reader_chain.invoke({"topic": topic, "multiple_sources": search_content[:1200]})
                 state['results']['analysis'] = analysis_result
                 yield yield_event('stage_completed', 'analysis', result=analysis_result)
 
                 yield yield_event('stage_started', 'contrarian', num=5)
-                time.sleep(1.5)
+                time.sleep(REQUEST_DELAY)
                 contrarian_result = contrarian_chain.invoke({"topic": topic, "analysis": analysis_result[:800]})
                 state['results']['contrarian'] = contrarian_result
                 yield yield_event('stage_completed', 'contrarian', result=contrarian_result)
 
                 yield yield_event('stage_started', 'writer', num=6)
-                time.sleep(1.5)
+                time.sleep(REQUEST_DELAY)
                 research_combined = f"Search Results:\n{search_content[:600]}\n\nAnalysis:\n{analysis_result[:600]}\n\nAlternative Perspectives:\n{contrarian_result[:300]}"
                 writer_result = writer_chain.invoke({"topic": topic, "research": research_combined})
                 state['results']['writer'] = writer_result
@@ -142,7 +145,7 @@ def research_stream():
                 
                 while current_iteration < max_iterations:
                     current_iteration += 1
-                    time.sleep(1.5)
+                    time.sleep(REQUEST_DELAY)
                     critic_result = critic_chain.invoke({"report": current_report[:1500]})
                     critic_feedback = critic_result
                     try:
@@ -157,7 +160,7 @@ def research_stream():
                     if quality_score >= 8.0:
                         break
                     if current_iteration < max_iterations:
-                        time.sleep(1.5)
+                        time.sleep(REQUEST_DELAY)
                         current_report = revision_chain.invoke({
                             "original_report": current_report[:1500],
                             "criticism": critic_feedback[:800],
@@ -170,7 +173,7 @@ def research_stream():
                 yield yield_event('stage_completed', 'critic_loop', result=critic_feedback)
 
                 yield yield_event('stage_started', 'confidence', num=8)
-                time.sleep(1.5)
+                time.sleep(REQUEST_DELAY)
                 citation_result = citation_chain.invoke({"sources_data": f"{search_content[:800]}"})
                 state['results']['citations'] = citation_result
                 try:
