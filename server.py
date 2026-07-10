@@ -64,6 +64,13 @@ def invoke_llm_chain(prompt_template, inputs, metrics):
     track_call(response, metrics)
     return extract_string(response.content)
 
+def smart_sleep(duration):
+    elapsed = 0.0
+    while elapsed < duration:
+        time.sleep(0.5)
+        elapsed += 0.5
+        yield ": ping\n\n"
+
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({'status': 'online', 'message': 'ARCS Backend API is running successfully.'}), 200
@@ -128,7 +135,8 @@ def research_stream():
 
                 yield yield_event('stage_started', 'research', num=2)
                 research_start = time.time()
-                time.sleep(REQUEST_DELAY)
+                for ping in smart_sleep(REQUEST_DELAY):
+                    yield ping
                 queries = []
                 for line in research_questions.split('\n'):
                     clean = re.sub(r'^\d+[\.\-\)]\s*', '', line.strip()).strip('* ')
@@ -162,7 +170,8 @@ def research_stream():
 
                 yield yield_event('stage_started', 'claim_extraction', num=3)
                 claim_start = time.time()
-                time.sleep(REQUEST_DELAY)
+                for ping in smart_sleep(REQUEST_DELAY):
+                    yield ping
                 claims_text = invoke_llm_chain(claim_extractor_prompt, {"report": search_content[:1500]}, metrics)
                 state['results']['claim_extraction'] = claims_text
                 metrics['latencies']['claim_extraction'] = round(time.time() - claim_start, 2)
@@ -170,7 +179,8 @@ def research_stream():
 
                 yield yield_event('stage_started', 'fact_verification', num=4)
                 verify_start = time.time()
-                time.sleep(REQUEST_DELAY)
+                for ping in smart_sleep(REQUEST_DELAY):
+                    yield ping
                 claims = []
                 for line in claims_text.split('\n'):
                     clean = re.sub(r'^\d+[\.\-\)]\s*', '', line.strip()).strip('* ')
@@ -219,7 +229,8 @@ def research_stream():
 
                 yield yield_event('stage_started', 'analysis', num=5)
                 analysis_start = time.time()
-                time.sleep(REQUEST_DELAY)
+                for ping in smart_sleep(REQUEST_DELAY):
+                    yield ping
                 analysis_result = invoke_llm_chain(multi_reader_prompt, {"topic": topic, "multiple_sources": search_content[:1200]}, metrics)
                 contrarian_result = invoke_llm_chain(contrarian_prompt, {"topic": topic, "analysis": analysis_result[:800]}, metrics)
                 analysis_combined = f"{analysis_result}\n\nContrarian Viewpoint:\n{contrarian_result}"
@@ -229,7 +240,8 @@ def research_stream():
 
                 yield yield_event('stage_started', 'writer', num=6)
                 writer_start = time.time()
-                time.sleep(REQUEST_DELAY)
+                for ping in smart_sleep(REQUEST_DELAY):
+                    yield ping
                 research_combined = f"Search Results:\n{search_content[:600]}\n\nAnalysis:\n{analysis_combined[:600]}"
                 writer_result = invoke_llm_chain(writer_prompt, {"topic": topic, "research": research_combined}, metrics)
                 state['results']['writer'] = writer_result
@@ -246,7 +258,8 @@ def research_stream():
                 
                 while current_iteration < max_iterations:
                     current_iteration += 1
-                    time.sleep(REQUEST_DELAY)
+                    for ping in smart_sleep(REQUEST_DELAY):
+                        yield ping
                     critic_result = invoke_llm_chain(critic_prompt, {"report": current_report[:1500]}, metrics)
                     critic_feedback = critic_result
                     
@@ -261,11 +274,14 @@ def research_stream():
                     except:
                         quality_score = 6.0
                         
+                    yield yield_event('stage_progress', 'critic_loop', iteration=current_iteration, score=quality_score)
+                    
                     if quality_score >= 8.0:
                         break
                         
                     if current_iteration < max_iterations:
-                        time.sleep(REQUEST_DELAY)
+                        for ping in smart_sleep(REQUEST_DELAY):
+                            yield ping
                         revised = invoke_llm_chain(revision_prompt, {"original_report": current_report[:1500], "criticism": critic_feedback[:800], "current_score": quality_score}, metrics)
                         current_report = revised
                         
@@ -276,7 +292,8 @@ def research_stream():
 
                 yield yield_event('stage_started', 'grounded_citations', num=8)
                 grounding_start = time.time()
-                time.sleep(REQUEST_DELAY)
+                for ping in smart_sleep(REQUEST_DELAY):
+                    yield ping
                 serialized_verifications = ""
                 for idx, res in enumerate(verification_results):
                     serialized_verifications += f"[{idx+1}] Claim: {res['claim']}\nStatus: {res['status']}\nSnippet: {res['snippet']}\n"

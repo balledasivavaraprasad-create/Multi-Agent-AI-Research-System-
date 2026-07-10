@@ -46,11 +46,17 @@ def web_search(query: str) -> str:
     if not tavily_key:
         return "Error: TAVILY_API_KEY is not set in the environment variables."
     tavily = TavilyClient(api_key=tavily_key)
-    results = tavily.search(query=query, max_results=5)
+    query = query.strip()
+    if len(query) > 390:
+        query = query[:390]
+    try:
+        results = tavily.search(query=query, max_results=5)
+    except Exception as e:
+        return f"Warning: Web search failed for query '{query}': {str(e)}"
     out = []
-    for r in results["results"]:
+    for r in results.get("results", []):
         out.append(
-            f"Title : {r['title']}\nURL : {r['url']}\nSnippet : {r['content'][:300]}\n"
+            f"Title : {r.get('title', '')}\nURL : {r.get('url', '')}\nSnippet : {r.get('content', '')[:300]}\n"
         )
     return "\n-----\n".join(out)
 
