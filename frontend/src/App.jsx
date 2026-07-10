@@ -299,9 +299,24 @@ export default function App() {
                           <h3 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: '1.1rem', color: isActive || isDone ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>
                             {s.label}
                           </h3>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: isActive ? 'var(--accent-base)' : isDone ? 'var(--success-base)' : 'var(--text-tertiary)', letterSpacing: '0.1em' }}>
-                            {st.toUpperCase()}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {isActive && (
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                                style={{
+                                  width: '12px',
+                                  height: '12px',
+                                  borderRadius: '50%',
+                                  border: '2px solid var(--accent-base)',
+                                  borderTopColor: 'transparent'
+                                }}
+                              />
+                            )}
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: isActive ? 'var(--accent-base)' : isDone ? 'var(--success-base)' : 'var(--text-tertiary)', letterSpacing: '0.1em' }}>
+                              {st.toUpperCase()}
+                            </span>
+                          </div>
                         </div>
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                           {s.desc}
@@ -325,21 +340,6 @@ export default function App() {
                         <Zap size={16} /> ENGINE EXECUTION METRICS
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
-                          <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>TOTAL COST (USD)</div>
-                          <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-                            ${metadata.metrics.cost_usd.toFixed(5)}
-                          </div>
-                        </div>
-                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
-                          <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>TOKEN USAGE</div>
-                          <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-                            {metadata.metrics.input_tokens + metadata.metrics.output_tokens}
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '4px', fontWeight: 400 }}>
-                              ({metadata.metrics.input_tokens} / {metadata.metrics.output_tokens})
-                            </span>
-                          </div>
-                        </div>
                         <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
                           <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>SOURCE QUALITY</div>
                           <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
@@ -393,7 +393,7 @@ export default function App() {
                         </div>
                         {metadata.confidence_score && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--success-dim)', border: '1px solid var(--success-base)', padding: '0.25rem 0.75rem', borderRadius: '20px', color: 'var(--success-base)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                            <ShieldCheck size={14} /> CONFIDENCE: {metadata.confidence_score}/10
+                            <ShieldCheck size={14} /> CONFIDENCE: {Number(metadata.confidence_score).toFixed(2)}/10
                           </div>
                         )}
                       </div>

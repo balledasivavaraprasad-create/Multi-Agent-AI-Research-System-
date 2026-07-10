@@ -288,10 +288,10 @@ def research_stream():
                 yield yield_event('stage_completed', 'grounded_citations', result=grounded_report)
 
                 state['metadata'] = {
-                    'confidence_score': avg_confidence / 10,
+                    'confidence_score': round(avg_confidence / 10, 2),
                     'quality_score': quality_score,
                     'iterations': state['iterations'],
-                    'fact_check_score': avg_confidence / 100,
+                    'fact_check_score': round(avg_confidence / 100, 2),
                     'timestamp': state['timestamp'],
                     'metrics': metrics
                 }
