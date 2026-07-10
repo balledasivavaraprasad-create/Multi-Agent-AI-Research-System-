@@ -256,7 +256,23 @@ Revise the report to address the feedback while maintaining factual integrity. F
 Provide the revised report.""")
 ])
 revision_chain = revision_prompt | llm | StrOutputParser()
+claim_extractor_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an elite research analyst. Extract exactly 3 to 5 key factual claims from the provided report that require independent verification. Respond in a clean, numbered list of claims, with absolutely no introduction or explanation."),
+    ("human", "{report}")
+])
+claim_extractor_chain = claim_extractor_prompt | llm | StrOutputParser()
 
+fact_verifier_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an unbiased fact-checker. Verify the claim below against the provided search evidence.\nClaim: {claim}\n\nEvidence:\n{evidence}\n\nEvaluate the claim based on the evidence. Respond in a clean JSON format (with no markdown code block formatting) containing exactly these three fields:\n- status: 'Verified' | 'Not Verified' | 'Partially Verified'\n- confidence: a number from 0 to 100\n- snippet: a short, specific supporting text snippet from the evidence"),
+    ("human", "Verify this claim.")
+])
+fact_verifier_chain = fact_verifier_prompt | llm | StrOutputParser()
+
+grounding_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a professional research editor. Ground the provided research report with inline citations using numbers like [1], [2], etc., corresponding to the verified evidence.\n\nReport:\n{report}\n\nVerified Evidence:\n{verification_results}\n\nRewrite the report to integrate the inline citations naturally. At the very end of the report, add a 'Citations & Sources' section listing each numbered citation, the source URL, and the exact supporting evidence snippet in the format:\n[1] Source Name (URL)\nEvidence: \"exact snippet\""),
+    ("human", "Ground this report.")
+])
+grounding_chain = grounding_prompt | llm | StrOutputParser()
 
 STAGES = [
     {
@@ -271,57 +287,57 @@ STAGES = [
         'id': 'research',
         'num': '02',
         'label': 'Research',
-        'full': 'Multi-Source Research',
-        'desc': 'Gathering top-ranked sources comprehensively',
+        'full': 'Parallel Multi-Query Research',
+        'desc': 'Gathering multi-source data parallelly',
         'chain': None,
     },
     {
-        'id': 'factcheck',
+        'id': 'claim_extraction',
         'num': '03',
-        'label': 'Verification',
-        'full': 'Fact Checker Agent',
-        'desc': 'Validating claims, statistics, and sources',
-        'chain': fact_checker_chain,
+        'label': 'Claim Extraction',
+        'full': 'Claim Extractor Agent',
+        'desc': 'Extracting key factual claims requiring verification',
+        'chain': claim_extractor_chain,
+    },
+    {
+        'id': 'fact_verification',
+        'num': '04',
+        'label': 'Fact Verification',
+        'full': 'Real-Time Fact Verification',
+        'desc': 'Searching evidence and verifying claims in parallel',
+        'chain': fact_verifier_chain,
     },
     {
         'id': 'analysis',
-        'num': '04',
-        'label': 'Analysis',
-        'full': 'Multi-Source Analysis',
-        'desc': 'Extracting insights with source mapping',
-        'chain': multi_reader_chain,
-    },
-    {
-        'id': 'contrarian',
         'num': '05',
-        'label': 'Perspective',
-        'full': 'Contrarian Agent',
-        'desc': 'Challenging assumptions and finding gaps',
-        'chain': contrarian_chain,
+        'label': 'Analysis & Synthesis',
+        'full': 'Multi-Source Analysis',
+        'desc': 'Extracting insights and integrating contrarian views',
+        'chain': multi_reader_chain,
     },
     {
         'id': 'writer',
         'num': '06',
         'label': 'Writing',
         'full': 'Writer Agent',
-        'desc': 'Composing report with citations',
+        'desc': 'Composing initial research report',
         'chain': writer_chain,
     },
     {
         'id': 'critic_loop',
         'num': '07',
         'label': 'Quality Loop',
-        'full': 'Critic & Revision',
-        'desc': 'Iterative refinement (max 3 iterations)',
+        'full': 'Critic & Revision Loop',
+        'desc': 'Iterative refinement and scoring',
         'chain': critic_chain,
     },
     {
-        'id': 'confidence',
+        'id': 'grounded_citations',
         'num': '08',
-        'label': 'Confidence',
-        'full': 'Citations & Score',
-        'desc': 'Generate references and quality score',
-        'chain': confidence_chain,
+        'label': 'Grounded Citations',
+        'full': 'Grounding & Citations Agent',
+        'desc': 'Aligning evidence, inline references and footnotes',
+        'chain': grounding_chain,
     }
 ]
 

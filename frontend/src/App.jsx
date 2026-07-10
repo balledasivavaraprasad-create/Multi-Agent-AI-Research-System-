@@ -14,13 +14,13 @@ import './index.css';
 
 const STAGES = [
   { id: 'planner', num: '01', label: 'Planning', desc: 'Structuring research into focused questions', icon: Split },
-  { id: 'research', num: '02', label: 'Research', desc: 'Gathering top-ranked sources comprehensively', icon: Search },
-  { id: 'factcheck', num: '03', label: 'Verification', desc: 'Validating claims, statistics, and sources', icon: ShieldCheck },
-  { id: 'analysis', num: '04', label: 'Analysis', desc: 'Extracting insights with source mapping', icon: Zap },
-  { id: 'contrarian', num: '05', label: 'Perspective', desc: 'Challenging assumptions and finding gaps', icon: Eye },
-  { id: 'writer', num: '06', label: 'Writing', desc: 'Composing report with citations', icon: PenLine },
-  { id: 'critic_loop', num: '07', label: 'Quality Loop', desc: 'Iterative refinement and review', icon: AlertCircle },
-  { id: 'confidence', num: '08', label: 'Confidence', desc: 'Generate references and quality score', icon: Award }
+  { id: 'research', num: '02', label: 'Research', desc: 'Gathering multi-source data parallelly', icon: Search },
+  { id: 'claim_extraction', num: '03', label: 'Claim Extraction', desc: 'Extracting key factual claims requiring verification', icon: Zap },
+  { id: 'fact_verification', num: '04', label: 'Fact Verification', desc: 'Searching evidence and verifying claims in parallel', icon: ShieldCheck },
+  { id: 'analysis', num: '05', label: 'Analysis & Synthesis', desc: 'Extracting insights and integrating contrarian views', icon: Eye },
+  { id: 'writer', num: '06', label: 'Writing', desc: 'Composing initial research report', icon: PenLine },
+  { id: 'critic_loop', num: '07', label: 'Quality Loop', desc: 'Iterative refinement and scoring', icon: AlertCircle },
+  { id: 'grounded_citations', num: '08', label: 'Grounded Citations', desc: 'Aligning evidence, inline references and footnotes', icon: Award }
 ];
 
 export default function App() {
@@ -313,49 +313,113 @@ export default function App() {
               </div>
 
               {phase === 'done' && results.writer && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                  style={{
-                    background: 'var(--bg-surface)', border: '1px solid var(--border-focus)',
-                    borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
-                  }}
-                >
-                  <div style={{
-                    padding: '2rem', borderBottom: '1px solid var(--border-base)',
-                    background: 'linear-gradient(180deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-base)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', letterSpacing: '0.1em' }}>
-                        <FileText size={16} /> FINAL RESEARCH REPORT
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                  {metadata.metrics && (
+                    <div className="glass-panel" style={{
+                      padding: '2rem', borderRadius: '16px',
+                      background: 'var(--bg-surface)', border: '1px solid var(--border-focus)',
+                      display: 'flex', flexDirection: 'column', gap: '1.5rem',
+                      boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-base)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', letterSpacing: '0.1em' }}>
+                        <Zap size={16} /> ENGINE EXECUTION METRICS
                       </div>
-                      {metadata.confidence_score && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--success-dim)', border: '1px solid var(--success-base)', padding: '0.25rem 0.75rem', borderRadius: '20px', color: 'var(--success-base)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                          <ShieldCheck size={14} /> CONFIDENCE: {metadata.confidence_score}/10
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem' }}>
+                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
+                          <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>TOTAL COST (USD)</div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                            ${metadata.metrics.cost_usd.toFixed(5)}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2.5rem', fontWeight: 400, color: 'var(--text-primary)', lineHeight: 1.1 }}>
-                      {runTopic.current}
-                    </h2>
-                  </div>
-
-                  <div style={{ padding: '3rem 2.5rem' }}>
-                    <div className="prose">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {results.writer}
-                      </ReactMarkdown>
-                    </div>
-                  </div>
-
-                  {results.citations && (
-                    <div style={{ padding: '2rem 2.5rem', background: 'var(--bg-base)', borderTop: '1px solid var(--border-base)' }}>
-                      <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', letterSpacing: '0.1em' }}>REFERENCES & CITATIONS</h4>
-                      <pre style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', opacity: 0.8 }}>
-                        {results.citations}
-                      </pre>
+                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
+                          <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>TOKEN USAGE</div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                            {metadata.metrics.input_tokens + metadata.metrics.output_tokens}
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '4px', fontWeight: 400 }}>
+                              ({metadata.metrics.input_tokens} / {metadata.metrics.output_tokens})
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
+                          <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>SOURCE QUALITY</div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                            {metadata.metrics.overall_source_quality}/10
+                          </div>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
+                          <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>FACT-CHECK ACCURACY</div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                            {metadata.metrics.verification_confidence}%
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ borderTop: '1px solid var(--border-base)', paddingTop: '1.5rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '1rem', letterSpacing: '0.05em' }}>LATENCY PROFILE BY STAGE</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {Object.entries(metadata.metrics.latencies).map(([stageId, latency]) => {
+                            const matchedStage = STAGES.find(s => s.id === stageId);
+                            const stageName = matchedStage ? matchedStage.label : stageId;
+                            const maxLatency = Math.max(...Object.values(metadata.metrics.latencies), 1);
+                            const widthPercent = (latency / maxLatency) * 100;
+                            return (
+                              <div key={stageId} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ width: '160px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{stageName}</div>
+                                <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: '3px', overflow: 'hidden' }}>
+                                  <div style={{ width: `${widthPercent}%`, height: '100%', background: 'var(--accent-base)', borderRadius: '3px' }} />
+                                </div>
+                                <div style={{ width: '50px', fontSize: '0.8rem', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{latency}s</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   )}
-                </motion.div>
+
+                  <motion.div 
+                    initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                    style={{
+                      background: 'var(--bg-surface)', border: '1px solid var(--border-focus)',
+                      borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
+                    }}
+                  >
+                    <div style={{
+                      padding: '2rem', borderBottom: '1px solid var(--border-base)',
+                      background: 'linear-gradient(180deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-base)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', letterSpacing: '0.1em' }}>
+                          <FileText size={16} /> FINAL RESEARCH REPORT
+                        </div>
+                        {metadata.confidence_score && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--success-dim)', border: '1px solid var(--success-base)', padding: '0.25rem 0.75rem', borderRadius: '20px', color: 'var(--success-base)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                            <ShieldCheck size={14} /> CONFIDENCE: {metadata.confidence_score}/10
+                          </div>
+                        )}
+                      </div>
+                      <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2.5rem', fontWeight: 400, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+                        {runTopic.current}
+                      </h2>
+                    </div>
+
+                    <div style={{ padding: '3rem 2.5rem' }}>
+                      <div className="prose">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {results.writer}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+
+                    {results.citations && (
+                      <div style={{ padding: '2rem 2.5rem', background: 'var(--bg-base)', borderTop: '1px solid var(--border-base)' }}>
+                        <h4 style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', letterSpacing: '0.1em' }}>REFERENCES & CITATIONS</h4>
+                        <pre style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', opacity: 0.8 }}>
+                          {results.citations}
+                        </pre>
+                      </div>
+                    )}
+                  </motion.div>
+                </div>
               )}
             </motion.div>
           )}

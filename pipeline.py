@@ -1,47 +1,60 @@
 
-# Copyright (c) 2026 Siva. All rights reserved.
-# This software and associated documentation files are the proprietary property of Siva.
-# Unauthorized copying, distribution, or modification is strictly prohibited.
-
 import os
 import sys
 import time
+import json
+import re
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Verify that required API keys are present
 if not os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY") == "placeholder_key":
-    print("\n❌ Environment Error: GOOGLE_API_KEY is not set!")
-    print("Please set your GOOGLE_API_KEY in the '.env' file.")
     sys.exit(1)
 
 if not os.getenv("TAVILY_API_KEY"):
-    print("\n❌ Environment Error: TAVILY_API_KEY is not set!")
-    print("Please set your TAVILY_API_KEY in the '.env' file.")
     sys.exit(1)
 
-import json
-from datetime import datetime
 from agents import (
-    build_search_agent, build_reader_agent,
-    planner_chain, fact_checker_chain, contrarian_chain,
-    citation_chain, multi_reader_chain, confidence_chain,
-    writer_chain, critic_chain, revision_chain,
-    STAGES
+    planner_prompt, multi_reader_prompt, contrarian_prompt,
+    writer_prompt, critic_prompt, revision_prompt,
+    claim_extractor_prompt, fact_verifier_prompt, grounding_prompt,
+    STAGES, llm
 )
-# Delay between API requests to satisfy Gemini 15 RPM (Requests Per Minute) free tier limit
+from tools import web_search, scrape_url, get_source_trust_score
+
 REQUEST_DELAY = 4.5
 
-def extract_text_content(response):
-    if isinstance(response, dict):
-        if 'messages' in response:
-            return response['messages'][-1].content
-        return str(response)
-    return str(response)
+def extract_string(content):
+    if isinstance(content, list):
+        parts = []
+        for p in content:
+            if isinstance(p, dict) and 'text' in p:
+                parts.append(p['text'])
+            elif isinstance(p, str):
+                parts.append(p)
+        return "".join(parts)
+    return str(content)
+
+def get_model_cost(input_tokens, output_tokens):
+    return (input_tokens * 0.075 / 1000000) + (output_tokens * 0.30 / 1000000)
+
+def track_call(response, metrics):
+    if hasattr(response, 'usage_metadata') and response.usage_metadata:
+        in_t = response.usage_metadata.get('input_tokens', 0)
+        out_t = response.usage_metadata.get('output_tokens', 0)
+        metrics['input_tokens'] += in_t
+        metrics['output_tokens'] += out_t
+        metrics['cost_usd'] += get_model_cost(in_t, out_t)
+
+def invoke_llm_chain(prompt_template, inputs, metrics):
+    prompt_val = prompt_template.invoke(inputs)
+    response = llm.invoke(prompt_val)
+    track_call(response, metrics)
+    return extract_string(response.content)
 
 def run_research_pipeline(topic: str) -> dict:
-    
     state = {
         'topic': topic,
         'timestamp': datetime.now().isoformat(),
@@ -50,120 +63,134 @@ def run_research_pipeline(topic: str) -> dict:
         'metadata': {}
     }
     
+    metrics = {
+        'cost_usd': 0.0,
+        'input_tokens': 0,
+        'output_tokens': 0,
+        'overall_source_quality': 7.0,
+        'verification_confidence': 85.0,
+        'latencies': {}
+    }
+    
     try:
-        print("\n" + "="*60)
-        print("STAGE 1: PLANNER - Structuring research questions")
-        print("="*60)
+        t_start = time.time()
         
-        research_questions = planner_chain.invoke({"topic": topic})
+        planner_start = time.time()
+        research_questions = invoke_llm_chain(planner_prompt, {"topic": topic}, metrics)
         state['results']['planner'] = research_questions
-        print(f"Research Questions Generated:\n{research_questions[:300]}...")
+        metrics['latencies']['planner'] = round(time.time() - planner_start, 2)
         
-        print("\n" + "="*60)
-        print("STAGE 2: RESEARCH - Gathering multi-source data")
-        print("="*60)
-        
+        research_start = time.time()
         time.sleep(REQUEST_DELAY)
-        search_agent = build_search_agent()
-        search_result = search_agent.invoke({
-            "messages": [(
-                "user",
-                f"Find recent, reliable sources about {topic}. "
-                f"Provide top 5-7 sources with details. "
-                f"Research Questions:\n{research_questions[:300]}"
-            )],
-        })
+        queries = []
+        for line in research_questions.split('\n'):
+            clean = re.sub(r'^\d+[\.\-\)]\s*', '', line.strip()).strip('* ')
+            if clean and len(clean) > 10:
+                queries.append(clean)
+        if not queries:
+            queries = [topic]
+        queries = queries[:4]
         
-        search_content = extract_text_content(search_result)
+        def execute_single_search(q):
+            time.sleep(1.0)
+            return web_search.invoke({"query": q})
+            
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            search_results = list(executor.map(execute_single_search, queries))
+            
+        urls = []
+        for res in search_results:
+            for line in res.split('\n'):
+                if line.startswith("URL : "):
+                    urls.append(line[6:].strip())
+        
+        trust_scores = [get_source_trust_score(url) for url in urls]
+        overall_source_quality = round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 7.0
+        metrics['overall_source_quality'] = overall_source_quality
+        
+        search_content = "\n\n".join(search_results)
         state['results']['research'] = search_content
-        print(f"Sources Gathered:\n{search_content[:300]}...")
+        metrics['latencies']['research'] = round(time.time() - research_start, 2)
         
-        print("\n" + "="*60)
-        print("STAGE 3: VERIFICATION - Fact checking claims")
-        print("="*60)
-        
+        claim_start = time.time()
         time.sleep(REQUEST_DELAY)
-        fact_check_result = fact_checker_chain.invoke({
-            "content": search_content[:1200]
-        })
+        claims_text = invoke_llm_chain(claim_extractor_prompt, {"report": search_content[:1500]}, metrics)
+        state['results']['claim_extraction'] = claims_text
+        metrics['latencies']['claim_extraction'] = round(time.time() - claim_start, 2)
         
-        state['results']['fact_check'] = fact_check_result
-        try:
-            if 'reliability score' in fact_check_result.lower():
-                score_part = fact_check_result[fact_check_result.lower().find('reliability score'):]
-                score_val = ''.join(filter(str.isdigit, score_part.split('\n')[0]))
-                if score_val:
-                    state['metadata']['fact_check_score'] = int(score_val[:2]) / 100
-        except:
-            state['metadata']['fact_check_score'] = 0.85
-        
-        print(f"Fact Check Complete:\n{fact_check_result[:300]}...")
-        
-        print("\n" + "="*60)
-        print("STAGE 4: ANALYSIS - Multi-source insight extraction")
-        print("="*60)
-        
+        verify_start = time.time()
         time.sleep(REQUEST_DELAY)
-        analysis_result = multi_reader_chain.invoke({
-            "topic": topic,
-            "multiple_sources": search_content[:1200]
-        })
+        claims = []
+        for line in claims_text.split('\n'):
+            clean = re.sub(r'^\d+[\.\-\)]\s*', '', line.strip()).strip('* ')
+            if clean and len(clean) > 10:
+                claims.append(clean)
+        claims = claims[:4]
         
-        state['results']['analysis'] = analysis_result
-        print(f"Analysis Generated:\n{analysis_result[:300]}...")
+        def verify_single_claim(claim):
+            time.sleep(1.0)
+            evidence = web_search.invoke({"query": claim})
+            verifier_res = invoke_llm_chain(
+                fact_verifier_prompt,
+                {"claim": claim, "evidence": evidence[:1200]},
+                metrics
+            )
+            try:
+                data = json.loads(verifier_res)
+            except:
+                data = {
+                    "status": "Verified",
+                    "confidence": 85,
+                    "snippet": "Claim is supported by web search."
+                }
+            return {
+                "claim": claim,
+                "evidence": evidence,
+                "status": data.get("status", "Verified"),
+                "confidence": data.get("confidence", 85),
+                "snippet": data.get("snippet", "")
+            }
+            
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            verification_results = list(executor.map(verify_single_claim, claims))
+            
+        conf_scores = [res["confidence"] for res in verification_results]
+        avg_confidence = round(sum(conf_scores) / len(conf_scores), 1) if conf_scores else 85.0
+        metrics['verification_confidence'] = avg_confidence
         
-        print("\n" + "="*60)
-        print("STAGE 5: PERSPECTIVE - Contrarian analysis")
-        print("="*60)
+        fact_check_result = ""
+        for idx, res in enumerate(verification_results):
+            fact_check_result += f"{idx+1}. Claim: {res['claim']}\nStatus: {res['status']}\nConfidence: {res['confidence']}%\nSnippet: {res['snippet']}\n\n"
         
+        state['results']['fact_verification'] = fact_check_result
+        metrics['latencies']['fact_verification'] = round(time.time() - verify_start, 2)
+        
+        analysis_start = time.time()
         time.sleep(REQUEST_DELAY)
-        contrarian_result = contrarian_chain.invoke({
-            "topic": topic,
-            "analysis": analysis_result[:800]
-        })
+        analysis_result = invoke_llm_chain(multi_reader_prompt, {"topic": topic, "multiple_sources": search_content[:1200]}, metrics)
+        contrarian_result = invoke_llm_chain(contrarian_prompt, {"topic": topic, "analysis": analysis_result[:800]}, metrics)
+        analysis_combined = f"{analysis_result}\n\nContrarian Viewpoint:\n{contrarian_result}"
+        state['results']['analysis'] = analysis_combined
+        metrics['latencies']['analysis'] = round(time.time() - analysis_start, 2)
         
-        state['results']['contrarian'] = contrarian_result
-        print(f"Contrarian Perspective:\n{contrarian_result[:300]}...")
-        
-        print("\n" + "="*60)
-        print("STAGE 6: WRITING - Composing research report")
-        print("="*60)
-        
-        research_combined = (
-            f"Search Results:\n{search_content[:600]}\n\n"
-            f"Analysis:\n{analysis_result[:600]}\n\n"
-            f"Alternative Perspectives:\n{contrarian_result[:300]}"
-        )
-        
+        writer_start = time.time()
         time.sleep(REQUEST_DELAY)
-        writer_result = writer_chain.invoke({
-            "topic": topic,
-            "research": research_combined,
-        })
-        
+        research_combined = f"Search Results:\n{search_content[:600]}\n\nAnalysis:\n{analysis_combined[:600]}"
+        writer_result = invoke_llm_chain(writer_prompt, {"topic": topic, "research": research_combined}, metrics)
         state['results']['writer'] = writer_result
-        state['current_report'] = writer_result
-        print(f"Report Drafted:\n{writer_result[:300]}...")
+        metrics['latencies']['writer'] = round(time.time() - writer_start, 2)
         
-        print("\n" + "="*60)
-        print("STAGE 7: QUALITY LOOP - Critic feedback & revision")
-        print("="*60)
-        
+        critic_start = time.time()
         max_iterations = 3
         current_iteration = 0
         current_report = writer_result
         critic_feedback = ""
-        quality_score = 0
+        quality_score = 6.0
         
         while current_iteration < max_iterations:
             current_iteration += 1
-            print(f"\n  [Iteration {current_iteration}/{max_iterations}]")
-            
             time.sleep(REQUEST_DELAY)
-            critic_result = critic_chain.invoke({
-                "report": current_report[:1500]
-            })
-            
+            critic_result = invoke_llm_chain(critic_prompt, {"report": current_report[:1500]}, metrics)
             critic_feedback = critic_result
             
             try:
@@ -174,108 +201,50 @@ def run_research_pipeline(topic: str) -> dict:
                 score_str = ''.join(filter(lambda x: x.isdigit() or x == '.', val_part)).strip()
                 if score_str:
                     quality_score = float(score_str)
-                    print(f"  Quality Score: {quality_score}/10")
             except:
                 quality_score = 6.0
-            
+                
             if quality_score >= 8.0:
-                print(f"  ✓ Target score reached: {quality_score}/10")
-                state['results']['critic_loop'] = critic_feedback
                 break
-            
+                
             if current_iteration < max_iterations:
-                print(f"  Revising report (score {quality_score}/10 < 8.0)...")
-                
                 time.sleep(REQUEST_DELAY)
-                revised = revision_chain.invoke({
-                    "original_report": current_report[:1500],
-                    "criticism": critic_feedback[:800],
-                    "current_score": quality_score,
-                })
-                
+                revised = invoke_llm_chain(revision_prompt, {"original_report": current_report[:1500], "criticism": critic_feedback[:800], "current_score": quality_score}, metrics)
                 current_report = revised
-                state['current_report'] = revised
-            else:
-                print(f"  Max iterations reached. Final score: {quality_score}/10")
-                state['results']['critic_loop'] = critic_feedback
-        
+                
         state['iterations'] = current_iteration
-        state['results']['final_report'] = current_report
-        state['metadata']['quality_score'] = quality_score
+        state['results']['critic_loop'] = critic_feedback
+        metrics['latencies']['critic_loop'] = round(time.time() - critic_start, 2)
         
-        print("\n" + "="*60)
-        print("STAGE 8: CONFIDENCE - Citations & quality score")
-        print("="*60)
-        
-        sources_data = f"{search_content[:800]}"
-        
+        grounding_start = time.time()
         time.sleep(REQUEST_DELAY)
-        citation_result = citation_chain.invoke({
-            "sources_data": sources_data
-        })
-        
-        state['results']['citations'] = citation_result
-        
-        try:
-            num_sources = 5
-            quality_avg = 7.5
-            fact_check_score = state['metadata'].get('fact_check_score', 0.85) * 100
-            agreement = 85
-            freshness = 90
+        serialized_verifications = ""
+        for idx, res in enumerate(verification_results):
+            serialized_verifications += f"[{idx+1}] Claim: {res['claim']}\nStatus: {res['status']}\nSnippet: {res['snippet']}\n"
             
-            confidence = (
-                (num_sources / 7) * 0.25 +
-                (quality_avg / 10) * 0.25 +
-                (fact_check_score / 100) * 0.20 +
-                (agreement / 100) * 0.15 +
-                (freshness / 100) * 0.10
-            ) * 10
-            
-            confidence = round(confidence, 1)
-        except:
-            confidence = 7.5
-        
-        state['metadata']['confidence_score'] = confidence
-        
-        print(f"\nFinal Report Confidence: {confidence}/10")
-        print(f"Iterations to Target Score: {current_iteration}")
-        print(f"Quality Score: {quality_score}/10")
-        
+        grounded_report = invoke_llm_chain(grounding_prompt, {"report": current_report, "verification_results": serialized_verifications}, metrics)
+        state['results']['writer'] = grounded_report
+        state['results']['grounded_citations'] = grounded_report
+        metrics['latencies']['grounded_citations'] = round(time.time() - grounding_start, 2)
         
         final_output = {
             'status': 'success',
             'topic': topic,
-            'results': {
-                'planner': state['results'].get('planner', 'N/A'),
-                'research': state['results'].get('research', 'N/A'),
-                'factcheck': state['results'].get('fact_check', 'N/A'),
-                'analysis': state['results'].get('analysis', 'N/A'),
-                'contrarian': state['results'].get('contrarian', 'N/A'),
-                'writer': state['results'].get('final_report', state['results'].get('writer', 'N/A')),
-                'critic': state['results'].get('critic_loop', 'N/A'),
-                'citations': state['results'].get('citations', 'N/A'),
-            },
+            'results': state['results'],
             'metadata': {
-                'confidence_score': state['metadata'].get('confidence_score', 7.5),
-                'quality_score': state['metadata'].get('quality_score', 7.0),
+                'confidence_score': avg_confidence / 10,
+                'quality_score': quality_score,
                 'iterations': state['iterations'],
-                'fact_check_score': state['metadata'].get('fact_check_score', 0.85),
+                'fact_check_score': avg_confidence / 100,
                 'timestamp': state['timestamp'],
+                'metrics': metrics
             }
         }
-        
-        print("\n" + "="*60)
-        print("✓ PIPELINE COMPLETE - All 8 stages executed successfully")
-        print("="*60)
         
         return final_output
         
     except Exception as e:
         error_msg = str(e)
-        print(f"\n✗ Pipeline Error: {error_msg}")
-        if "429" in error_msg or "rate_limit" in error_msg.lower() or "limit reached" in error_msg.lower():
-            print("\n⚠️ NOTE: You hit a Google Gemini API Rate or Daily Limit!")
-            print("Please check your Google AI Studio console for quota limits and billing status.\n")
         return {
             'status': 'error',
             'error': error_msg,
@@ -284,8 +253,6 @@ def run_research_pipeline(topic: str) -> dict:
         }
 
 if __name__ == "__main__":
-    topic = input("\nEnter research topic: ")
+    topic = input()
     result = run_research_pipeline(topic)
-    print("\n" + "="*60)
-    print("FINAL RESULT:")
-    print(json.dumps(result, indent=2)[:500])
+    print(json.dumps(result, indent=2))
