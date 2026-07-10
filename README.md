@@ -10,194 +10,144 @@ app_port: 7860
 
 # ARCS — Siva's Advanced Research & Curation System
 
-A sophisticated, proprietary multi-agent AI research pipeline with an elegant web interface, created and maintained by **Siva**. This system orchestrates specialized agents to conduct comprehensive research on any topic.
+A sophisticated, enterprise-grade multi-agent AI research pipeline with an elegant web interface, created and maintained by **Siva**. This system orchestrates specialized agents in an 8-stage workflow to conduct comprehensive research, perform parallel fact verification, score source quality, and compose grounded reports with inline citations.
 
-## Features
+## System Architecture & Features
 
-- **Search Agent**: Scans the web for authoritative intelligence and current information
-- **Reader Agent**: Extracts deep insights and synthesizes key findings  
-- **Writer Agent**: Composes publication-ready research reports
-- **Critic Agent**: Evaluates reports with rigorous editorial standards
+### 1. Parallel Multi-Query Planning
+- **Planner Agent**: Generates 5–8 distinct, targeted research questions for the topic.
+- **Parallel Search execution**: Executes web searches for the queries concurrently using Python `ThreadPoolExecutor`, reducing pipeline latency.
+
+### 2. Deep Fact Verification & Claim Extraction
+- **Claim Extractor Agent**: Pulls 3–5 core factual statements from gathered research.
+- **Evidence Verification Agent**: Searches and parses evidence for each claim in parallel. Returns structured JSON verdicts containing: verification status (`Verified`, `Partially Verified`, `Not Verified`), verification confidence, and matching source snippets.
+
+### 3. Source Trust Ranking
+- Rates sources based on domain credibility:
+  - **10/10**: Government portals (`.gov`, `.gov.in`)
+  - **9/10**: Academic platforms (`.edu`, `arxiv.org`, `ieee.org`)
+  - **8/10**: Top-tier global news (Reuters, Bloomberg, BBC, NYT)
+  - **7/10**: Wikipedia
+  - **5/10**: Technical blogs (`medium.com`, `blogspot.com`)
+  - **4/10**: General sites
+- Calculates the `overall_source_quality` as the weighted average score of all consulted sources.
+
+### 4. Perplexity-Style Citation Grounding
+- **Grounding Agent**: Injects inline numbered references (`[1]`, `[2]`) into the report and outputs a `Citations & Sources` bibliography matching URLs with validated snippets.
+
+### 5. Observability Dashboard
+- Displays overall **Source Quality** and **Fact-Check Accuracy**.
+- Profiles latencies across all 8 pipeline stages in a horizontal bar chart:
+  1. `Planner`: Planning queries
+  2. `Research`: Parallel searching
+  3. `Claim Extraction`: Extracting facts
+  4. `Fact Verification`: Parallel verification
+  5. `Analysis & Synthesis`: Synthesizing insights
+  6. `Writing`: Composing draft
+  7. `Quality Loop`: Iterative critic refinement
+  8. `Grounded Citations`: Grounding citations
+
+### 6. Interactive Frontend Actions
+- **Circular Progress Wheel**: Displays real-time progress percentages (0-100%) for the active agent stages.
+- **Copy**: Copies the report text directly to your clipboard.
+- **PDF Export**: Generates and formats a print-ready document to save as PDF.
+
+---
 
 ## Project Structure
 
 ```
 Multi-Agent-System/
-├── index.html          # Main web interface (React-based)
-├── styles.css          # Global styles and animations
-├── pipeline.jsx        # Original React component (reference)
-├── agents.py           # Python backend (Google Gemini AI agents)
-├── tools.py            # Tool definitions (web search, URL scraping)
-├── pipeline.py         # Python pipeline execution
-├── requirements.txt    # Python dependencies
-└── .env               # Environment variables (API keys)
+├── frontend/               # React (Vite) Frontend Web App
+│   ├── src/
+│   │   ├── App.jsx         # UI, circular progress, dashboard & print/copy
+│   │   └── index.css       # Clean styling and professional sans-serif typography
+│   └── package.json
+├── agents.py               # Core Gemini Prompt chains and Fallback configuration
+├── tools.py                # Tavily search wrapper, scraper, and source trust scoring
+├── pipeline.py             # Local pipeline execution CLI
+├── server.py               # Flask backend SSE streaming server
+├── Dockerfile              # Docker container setup
+├── requirements.txt        # Python backend dependencies
+└── .env                    # Environment keys (Google & Tavily API keys)
 ```
+
+---
 
 ## Setup Instructions
 
-### Option 1: Web Interface (HTML + React)
-
-1. **Open in Browser**: Simply open `index.html` in a modern web browser
-   - Chrome, Safari, Firefox, or Edge all work perfectly
-   - No build process required—uses CDN for dependencies
-
-2. **Configure API Key**:
-   - When you click "Research", you'll be prompted for your **Anthropic API key**
-   - Get one from: https://console.anthropic.com/
-   - The key is only used for that session (not stored)
-
-3. **Enter Research Topic**:
-   - Type your topic in the input field
-   - Press Enter or click "Research"
-   - Watch the pipeline execute in real-time
-
-4. **View Results**:
-   - Track progress across 4 research stages
-   - Expand individual stage results by clicking "VIEW"
-   - Download final report by clicking "Copy Report"
-
-### Option 2: Python Backend
+### Backend (Python Flask Server)
 
 1. **Install Dependencies**:
    ```bash
    cd Multi-Agent-System
+   python -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-2. **Configure Environment**:
-   - Copy the `.env.example` template to `.env`:
-     ```bash
-     cp .env.example .env
-     ```
-   - Open `.env` and fill in your actual API keys:
-     ```env
-      GOOGLE_API_KEY=your_actual_google_key
-      TAVILY_API_KEY=your_actual_tavily_key
-     ```
-
-3. **Run Research Pipeline**:
+2. **Configure Environment Keys**:
+   Create a `.env` file from the template:
    ```bash
-   python pipeline.py
+   cp .env.example .env
+   ```
+   Add your keys:
+   ```env
+   GOOGLE_API_KEY=your_google_gemini_key
+   TAVILY_API_KEY=your_tavily_search_key
    ```
 
-4. **Interactive Mode**:
-   - Enter your research topic when prompted
-   - The system will process through all 4 agents
-   - Results display in the terminal
+3. **Run Backend Server**:
+   ```bash
+   python server.py
+   ```
 
-### Option 3: Deploy Backend to Render
-
-You can deploy the backend Flask server to Render for free using this button:
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/balledasivavaraprasad-create/Multi-Agent-AI-Research-System-)
-
-Render will read `render.yaml` to provision the service automatically and prompt you for the `GOOGLE_API_KEY` and `TAVILY_API_KEY` environment variables.
-
-
-## API Keys Required
-
-### For Web Interface (HTML):
-- **Anthropic API Key**: https://console.anthropic.com/
-  - Model: Claude Sonnet 4 (2025-05-14)
-  - Web search enabled
-
-### For Python Backend:
-- **Google API Key**: https://aistudio.google.com/
-- **Tavily Search API Key**: https://tavily.com/
-
-## Technology Stack
-
-### Frontend
-- React 18 (via CDN)
-- Lucide Icons for UI elements
-- Custom CSS animations
-- Babel for JSX transpilation
-
-### Backend
-- Python 3.13+
-- LangChain framework
-- Google Gemini (gemini-1.5-flash)
-- Tavily Search API
-- BeautifulSoup for web scraping
-
-## Browser Compatibility
-
-✅ Chrome/Chromium 90+
-✅ Safari 14+
-✅ Firefox 88+
-✅ Edge 90+
-
-## Usage Tips
-
-1. **Clear Topics**: Be specific for better research results
-   - ✅ "How quantum computing is revolutionizing cryptography"
-   - ❌ "quantum computing"
-
-2. **Monitor Progress**: Watch the visual progress rail to track execution
-
-3. **Expand Results**: Click "VIEW" on each stage to see intermediate findings
-
-4. **Copy Reports**: Use the "Copy Report" button to save the final analysis
-
-5. **Start New Research**: Click "New Research" to start a different topic
-
-## Performance Notes
-
-- Initial API calls may take 30-60 seconds per stage
-- Larger topics may require longer processing
-- Web search stage is typically slowest
-- All requests are made to official Anthropic/Google APIs
-
-## Styling & Customization
-
-- **Theme**: Dark mode with amber/gold accents
-- **Fonts**: Cormorant Garamond (serif), IBM Plex Mono (code), Instrument Sans (UI)
-- **Colors**: 
-  - Primary: #eae4d8 (text)
-  - Accent: #dfa020 (amber/gold)
-  - Success: #58b064 (green)
-  - Error: #c84040 (red)
-
-Edit `styles.css` to customize colors and animations.
-
-## Troubleshooting
-
-### "API error 401"
-- Your API key is invalid or expired
-- Verify the key on the respective provider's dashboard
-- Try generating a new key
-
-### "Pipeline error"
-- Check your internet connection
-- Ensure API key has sufficient credits
-- Try with a simpler research topic
-
-### Styles not loading
-- Clear your browser cache (Cmd+Shift+R or Ctrl+Shift+R)
-- Check browser console for errors (F12 → Console)
-- Verify styles.css is in the same directory as index.html
-
-### React not rendering
-- Check browser console for errors
-- Verify you're using a modern browser
-- Ensure JavaScript is enabled
-
-## License
-
-Proprietary — All Rights Reserved.
-Copyright © 2026 Siva.
-
-This software and all associated documentation files are the private, proprietary property of Siva. Unauthorized copying, distribution, modification, or usage of this codebase is strictly prohibited.
-
-## Support
-
-For issues or questions:
-1. Check the browser console (F12 → Console)
-2. Verify all API keys are correct
-3. Try a simpler research topic
-4. Ensure stable internet connection
+4. **Verify Health**:
+   ```bash
+   curl http://localhost:7860/api/health
+   ```
 
 ---
 
-**Happy researching!** 🔬✨
+### Frontend (React + Vite App)
+
+1. **Install Dependencies**:
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. **Start Dev Server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Production Build**:
+   ```bash
+   npm run build
+   ```
+
+---
+
+## Deployment Configuration
+
+- **Frontend Deployment**: Configured for **Vercel** with a clean Vite build script.
+- **Backend Deployment**: Ready for **Hugging Face Spaces** or **Render** utilizing the configured `Dockerfile` and `render.yaml`.
+
+---
+
+## Technology Stack
+
+- **Model Stack**: Google Gemini 2.5 Flash (with automatic failover to 2.0 Flash & Gemini Flash Lite).
+- **Orchestration**: LangChain, Python Concurrent Futures.
+- **Search & Scraping**: Tavily Client, BeautifulSoup4, Requests.
+- **Frontend Framework**: React 18, Vite, Framer Motion, Lucide Icons, React Markdown.
+
+---
+
+## License
+
+Proprietary — All Rights Reserved.  
+Copyright © 2026 Siva.
+
+This software and all associated documentation files are the private, proprietary property of Siva. Unauthorized copying, distribution, modification, or usage of this codebase is strictly prohibited.
