@@ -15,9 +15,9 @@ google_api_key = os.getenv("GOOGLE_API_KEY")
 tavily_api_key = os.getenv("TAVILY_API_KEY")
 
 from agents import (
-    planner_chain, multi_reader_chain, contrarian_chain,
-    writer_chain, critic_chain, revision_chain,
-    claim_extractor_chain, fact_verifier_chain, grounding_chain,
+    planner_prompt, multi_reader_prompt, contrarian_prompt,
+    writer_prompt, critic_prompt, revision_prompt,
+    claim_extractor_prompt, fact_verifier_prompt, grounding_prompt,
     STAGES, llm
 )
 from tools import web_search, scrape_url, get_source_trust_score
@@ -36,6 +36,17 @@ def extract_text_content(response):
         return str(response.content)
     return str(response)
 
+def extract_string(content):
+    if isinstance(content, list):
+        parts = []
+        for p in content:
+            if isinstance(p, dict) and 'text' in p:
+                parts.append(p['text'])
+            elif isinstance(p, str):
+                parts.append(p)
+        return "".join(parts)
+    return str(content)
+
 def get_model_cost(input_tokens, output_tokens):
     return (input_tokens * 0.075 / 1000000) + (output_tokens * 0.30 / 1000000)
 
@@ -51,7 +62,7 @@ def invoke_llm_chain(prompt_template, inputs, metrics):
     prompt_val = prompt_template.invoke(inputs)
     response = llm.invoke(prompt_val)
     track_call(response, metrics)
-    return response.content
+    return extract_string(response.content)
 
 @app.route('/', methods=['GET'])
 def index():
@@ -60,6 +71,19 @@ def index():
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'version': '2.0.0'}), 200
+
+@app.route('/api/stages', methods=['GET'])
+def get_stages():
+    safe_stages = []
+    for s in STAGES:
+        safe_stages.append({
+            'id': s['id'],
+            'num': s['num'],
+            'label': s['label'],
+            'full': s['full'],
+            'desc': s['desc']
+        })
+    return jsonify({'stages': safe_stages}), 200
 
 @app.route('/api/research-stream', methods=['POST'])
 def research_stream():
@@ -97,7 +121,7 @@ def research_stream():
             try:
                 yield yield_event('stage_started', 'planner', num=1)
                 planner_start = time.time()
-                research_questions = invoke_llm_chain(planner_chain, {"topic": topic}, metrics)
+                research_questions = invoke_llm_chain(planner_prompt, {"topic": topic}, metrics)
                 state['results']['planner'] = research_questions
                 metrics['latencies']['planner'] = round(time.time() - planner_start, 2)
                 yield yield_event('stage_completed', 'planner', result=research_questions)
@@ -139,7 +163,7 @@ def research_stream():
                 yield yield_event('stage_started', 'claim_extraction', num=3)
                 claim_start = time.time()
                 time.sleep(REQUEST_DELAY)
-                claims_text = invoke_llm_chain(claim_extractor_chain, {"report": search_content[:1500]}, metrics)
+                claims_text = invoke_llm_chain(claim_extractor_prompt, {"report": search_content[:1500]}, metrics)
                 state['results']['claim_extraction'] = claims_text
                 metrics['latencies']['claim_extraction'] = round(time.time() - claim_start, 2)
                 yield yield_event('stage_completed', 'claim_extraction', result=claims_text)
@@ -158,7 +182,7 @@ def research_stream():
                     time.sleep(1.0)
                     evidence = web_search.invoke({"query": claim})
                     verifier_res = invoke_llm_chain(
-                        fact_verifier_chain,
+                        fact_verifier_prompt,
                         {"claim": claim, "evidence": evidence[:1200]},
                         metrics
                     )
@@ -196,8 +220,8 @@ def research_stream():
                 yield yield_event('stage_started', 'analysis', num=5)
                 analysis_start = time.time()
                 time.sleep(REQUEST_DELAY)
-                analysis_result = invoke_llm_chain(multi_reader_chain, {"topic": topic, "multiple_sources": search_content[:1200]}, metrics)
-                contrarian_result = invoke_llm_chain(contrarian_chain, {"topic": topic, "analysis": analysis_result[:800]}, metrics)
+                analysis_result = invoke_llm_chain(multi_reader_prompt, {"topic": topic, "multiple_sources": search_content[:1200]}, metrics)
+                contrarian_result = invoke_llm_chain(contrarian_prompt, {"topic": topic, "analysis": analysis_result[:800]}, metrics)
                 analysis_combined = f"{analysis_result}\n\nContrarian Viewpoint:\n{contrarian_result}"
                 state['results']['analysis'] = analysis_combined
                 metrics['latencies']['analysis'] = round(time.time() - analysis_start, 2)
@@ -207,7 +231,7 @@ def research_stream():
                 writer_start = time.time()
                 time.sleep(REQUEST_DELAY)
                 research_combined = f"Search Results:\n{search_content[:600]}\n\nAnalysis:\n{analysis_combined[:600]}"
-                writer_result = invoke_llm_chain(writer_chain, {"topic": topic, "research": research_combined}, metrics)
+                writer_result = invoke_llm_chain(writer_prompt, {"topic": topic, "research": research_combined}, metrics)
                 state['results']['writer'] = writer_result
                 metrics['latencies']['writer'] = round(time.time() - writer_start, 2)
                 yield yield_event('stage_completed', 'writer', result=writer_result)
@@ -223,7 +247,7 @@ def research_stream():
                 while current_iteration < max_iterations:
                     current_iteration += 1
                     time.sleep(REQUEST_DELAY)
-                    critic_result = invoke_llm_chain(critic_chain, {"report": current_report[:1500]}, metrics)
+                    critic_result = invoke_llm_chain(critic_prompt, {"report": current_report[:1500]}, metrics)
                     critic_feedback = critic_result
                     
                     try:
@@ -242,7 +266,7 @@ def research_stream():
                         
                     if current_iteration < max_iterations:
                         time.sleep(REQUEST_DELAY)
-                        revised = invoke_llm_chain(revision_chain, {"original_report": current_report[:1500], "criticism": critic_feedback[:800], "current_score": quality_score}, metrics)
+                        revised = invoke_llm_chain(revision_prompt, {"original_report": current_report[:1500], "criticism": critic_feedback[:800], "current_score": quality_score}, metrics)
                         current_report = revised
                         
                 state['iterations'] = current_iteration
@@ -257,7 +281,7 @@ def research_stream():
                 for idx, res in enumerate(verification_results):
                     serialized_verifications += f"[{idx+1}] Claim: {res['claim']}\nStatus: {res['status']}\nSnippet: {res['snippet']}\n"
                     
-                grounded_report = invoke_llm_chain(grounding_chain, {"report": current_report, "verification_results": serialized_verifications}, metrics)
+                grounded_report = invoke_llm_chain(grounding_prompt, {"report": current_report, "verification_results": serialized_verifications}, metrics)
                 state['results']['writer'] = grounded_report
                 state['results']['grounded_citations'] = grounded_report
                 metrics['latencies']['grounded_citations'] = round(time.time() - grounding_start, 2)
