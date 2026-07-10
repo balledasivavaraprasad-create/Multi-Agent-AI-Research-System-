@@ -101,10 +101,11 @@ html, body {
 
 .prose {
   color: var(--text-secondary);
-  font-family: var(--font-serif);
-  font-size: 1.125rem;
-  line-height: 1.8;
-  font-weight: 300;
+  font-family: var(--font-sans);
+  font-size: 1.025rem;
+  line-height: 1.75;
+  font-weight: 400;
+  letter-spacing: -0.011em;
 }
 .prose h1, .prose h2, .prose h3 {
   color: var(--text-primary);
@@ -133,4 +134,10 @@ html, body {
   background: linear-gradient(90deg, var(--accent-dim), transparent);
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
+}
+
+.btn-action:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: var(--accent-base) !important;
+  color: var(--text-primary) !important;
 }
