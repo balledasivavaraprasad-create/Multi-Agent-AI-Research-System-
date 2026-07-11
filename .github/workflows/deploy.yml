@@ -11,15 +11,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: true
 
-      - name: Push to HF
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Hugging Face Hub
+        run: pip install huggingface_hub
+
+      - name: Run push script
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git config lfs.allowincompletepush true
-          git config --global credential.helper store
-          echo "https://itzSiva1:$HF_TOKEN@huggingface.co" > ~/.git-credentials
-          git push --force https://itzSiva1:$HF_TOKEN@huggingface.co/spaces/itzSiva1/AdvancedMultiAgentSystem main
+        run: python push_to_hf.py
