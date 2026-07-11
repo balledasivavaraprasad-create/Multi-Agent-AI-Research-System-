@@ -19,5 +19,6 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config lfs.allowincompletepush true
+          git config --global credential.helper store
+          echo "https://itzSiva1:$HF_TOKEN@huggingface.co" > ~/.git-credentials
           git push --force https://itzSiva1:$HF_TOKEN@huggingface.co/spaces/itzSiva1/AdvancedMultiAgentSystem main
