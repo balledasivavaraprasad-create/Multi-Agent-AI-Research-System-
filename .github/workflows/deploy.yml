@@ -19,4 +19,4 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push --force https://itzSiva1:$HF_TOKEN@hf.co/spaces/itzSiva1/AdvancedMultiAgentSystem main
+          git push --force https://itzSiva1:$HF_TOKEN@huggingface.co/spaces/itzSiva1/AdvancedMultiAgentSystem main
