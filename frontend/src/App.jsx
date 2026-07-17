@@ -432,7 +432,8 @@ export default function App() {
           maxWidth: '400px',
           boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)'
         }}>
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
+            <img src="/logo.png" alt="ARCS Logo" style={{ height: '64px', width: 'auto', marginBottom: '0.5rem' }} />
             <h1 style={{
               fontSize: '1.8rem',
               fontWeight: 700,
@@ -443,7 +444,7 @@ export default function App() {
               ARCS
             </h1>
             <p style={{ fontSize: '0.8rem', color: '#888', fontWeight: 500 }}>
-              Siva's Research Curation System
+              Advanced Research & Curation System
             </p>
           </div>
 
@@ -741,15 +742,16 @@ export default function App() {
           padding: '1.25rem 2.5rem', borderBottom: '1px solid var(--border-base)',
           borderTop: 'none', borderLeft: 'none', borderRight: 'none', background: 'var(--bg-surface)'
         }}>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img src="/logo.png" alt="ARCS Logo" style={{ height: '24px', width: 'auto' }} />
+            <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.05em' }}>
+              Advanced Research & Curation System
+            </span>
             {phase !== 'idle' && (
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-tertiary)',
-                maxWidth: '600px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-              }}>
-                <span style={{ color: 'var(--accent-base)', marginRight: '8px', letterSpacing: '0.1em' }}>TOPIC:</span>
+              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', marginLeft: '1rem', borderLeft: '1px solid var(--border-base)', paddingLeft: '1rem' }}>
+                <span style={{ color: 'var(--accent-base)', marginRight: '6px', fontWeight: 500 }}>TOPIC:</span>
                 {runTopic.current}
-              </div>
+              </span>
             )}
           </div>
           
