@@ -31,3 +31,6 @@ typing_extensions
 flask
 flask-cors
 gunicorn
+pymongo
+bcrypt
+pyjwt

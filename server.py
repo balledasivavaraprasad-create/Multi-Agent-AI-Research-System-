@@ -71,6 +71,196 @@ def smart_sleep(duration):
         elapsed += 0.5
         yield ": ping\n\n"
 
+# --- MongoDB & Authentication Setup ---
+import jwt
+import bcrypt
+from pymongo import MongoClient
+from bson.objectid import ObjectId
+from functools import wraps
+from datetime import datetime, timedelta
+
+mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/arcs")
+JWT_SECRET = os.getenv("JWT_SECRET", "arcs_super_secret_key_2026")
+
+try:
+    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+    client.server_info() # Validate connection
+    db = client.get_database("arcs")
+    print("✅ Connected to MongoDB database successfully!")
+except Exception as e:
+    print(f"⚠️ Warning: Failed to connect to MongoDB: {e}. Auth features will run in mock mode.")
+    db = None
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            
+        if not token:
+            return jsonify({'message': 'Token is missing!', 'status': 'error'}), 401
+            
+        try:
+            data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            current_user = None
+            if db is not None:
+                current_user = db.users.find_one({"_id": ObjectId(data["user_id"])})
+            else:
+                current_user = {"_id": ObjectId(data["user_id"]), "email": "mock@example.com"}
+                
+            if not current_user:
+                return jsonify({'message': 'User not found!', 'status': 'error'}), 401
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Token has expired!', 'status': 'error'}), 401
+        except Exception as e:
+            return jsonify({'message': f'Invalid token: {str(e)}', 'status': 'error'}), 401
+            
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return jsonify({'error': 'Missing email or password', 'status': 'error'}), 400
+            
+        email = data['email'].strip().lower()
+        password = data['password']
+        
+        if not email or not password:
+            return jsonify({'error': 'Email and password cannot be empty', 'status': 'error'}), 400
+            
+        if db is not None:
+            existing_user = db.users.find_one({"email": email})
+            if existing_user:
+                return jsonify({'error': 'Email already registered', 'status': 'error'}), 400
+                
+            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            
+            db.users.insert_one({
+                "email": email,
+                "password_hash": password_hash,
+                "created_at": datetime.utcnow()
+            })
+        else:
+            if email == "mock@example.com":
+                return jsonify({'error': 'Email already registered', 'status': 'error'}), 400
+                
+        return jsonify({'message': 'User registered successfully!', 'status': 'success'}), 201
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return jsonify({'error': 'Missing email or password', 'status': 'error'}), 400
+            
+        email = data['email'].strip().lower()
+        password = data['password']
+        
+        if db is not None:
+            user = db.users.find_one({"email": email})
+            if not user or not bcrypt.checkpw(password.encode('utf-8'), user["password_hash"]):
+                return jsonify({'error': 'Invalid email or password', 'status': 'error'}), 401
+            user_id_str = str(user["_id"])
+        else:
+            if email == "mock@example.com" and password == "password":
+                user_id_str = str(ObjectId("60c72b2f9b1d8e2b8c8d8e8f"))
+            else:
+                return jsonify({'error': 'Invalid credentials (use mock@example.com / password)', 'status': 'error'}), 401
+                
+        token = jwt.encode({
+            'user_id': user_id_str,
+            'exp': datetime.utcnow() + timedelta(days=7)
+        }, JWT_SECRET, algorithm="HS256")
+        
+        return jsonify({
+            'token': token,
+            'email': email,
+            'status': 'success'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/history', methods=['GET'])
+@token_required
+def get_history(current_user):
+    try:
+        history_list = []
+        if db is not None:
+            records = db.history.find({"user_id": current_user["_id"]}).sort("metadata.timestamp", -1)
+            for r in records:
+                history_list.append({
+                    "id": str(r["_id"]),
+                    "topic": r["topic"],
+                    "timestamp": r.get("metadata", {}).get("timestamp", datetime.utcnow().isoformat()),
+                    "metadata": {
+                        "confidence_score": r.get("metadata", {}).get("confidence_score", 0.85),
+                        "quality_score": r.get("metadata", {}).get("quality_score", 8.0),
+                        "fact_check_score": r.get("metadata", {}).get("fact_check_score", 0.85),
+                        "overall_source_quality": r.get("metadata", {}).get("overall_source_quality", 7.0),
+                        "latencies": r.get("metadata", {}).get("latencies", {})
+                    }
+                })
+        else:
+            history_list = [
+                {
+                    "id": "60c72b2f9b1d8e2b8c8d8e8f",
+                    "topic": "Example Research Report",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "metadata": {
+                        "confidence_score": 0.85,
+                        "quality_score": 8.0,
+                        "fact_check_score": 0.85,
+                        "overall_source_quality": 7.5,
+                        "latencies": {"planner": 2.5, "research": 4.1}
+                    }
+                }
+            ]
+        return jsonify({'history': history_list, 'status': 'success'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/history/<record_id>', methods=['GET'])
+@token_required
+def get_history_detail(current_user, record_id):
+    try:
+        if db is not None:
+            record = db.history.find_one({"_id": ObjectId(record_id), "user_id": current_user["_id"]})
+            if not record:
+                return jsonify({'error': 'Record not found', 'status': 'error'}), 404
+            return jsonify({
+                'topic': record["topic"],
+                'results': record["results"],
+                'metadata': record["metadata"],
+                'status': 'success'
+            }), 200
+        else:
+            if record_id == "60c72b2f9b1d8e2b8c8d8e8f":
+                return jsonify({
+                    'topic': "Example Research Report",
+                    'results': {
+                        'writer': "# Example Report\nThis is a mock saved report.",
+                        'grounded_citations': "# Example Report\nThis is a mock saved report."
+                    },
+                    'metadata': {
+                        "confidence_score": 0.85,
+                        "quality_score": 8.0,
+                        "fact_check_score": 0.85,
+                        "overall_source_quality": 7.5,
+                        "latencies": {"planner": 2.5, "research": 4.1}
+                    },
+                    'status': 'success'
+                }), 200
+            return jsonify({'error': 'Record not found', 'status': 'error'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({'status': 'online', 'message': 'ARCS Backend API is running successfully.'}), 200
@@ -95,6 +285,20 @@ def get_stages():
 @app.route('/api/research-stream', methods=['POST'])
 def research_stream():
     try:
+        # Extract user from JWT token header (if present)
+        current_user = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            try:
+                data_jwt = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+                if db is not None:
+                    current_user = db.users.find_one({"_id": ObjectId(data_jwt["user_id"])})
+                else:
+                    current_user = {"_id": ObjectId(data_jwt["user_id"]), "email": "mock@example.com"}
+            except Exception as e:
+                print(f"⚠️ Warning: Invalid JWT token in stream authorization: {e}")
+                
         data = request.get_json()
         if not data or 'topic' not in data:
             return jsonify({'error': 'Missing topic', 'status': 'error'}), 400
@@ -313,6 +517,19 @@ def research_stream():
                     'metrics': metrics
                 }
                 
+                # Auto-save finished run to MongoDB research history
+                if current_user and db is not None:
+                    try:
+                        db.history.insert_one({
+                            "user_id": current_user["_id"],
+                            "topic": topic,
+                            "results": state['results'],
+                            "metadata": state['metadata']
+                        })
+                        print(f"💾 Saved research run for '{topic}' to history.")
+                    except Exception as he:
+                        print(f"⚠️ Error saving to MongoDB: {he}")
+                        
                 yield f"data: {json.dumps({'type': 'complete', 'results': state['results'], 'metadata': state['metadata']})}\n\n"
 
             except Exception as e:

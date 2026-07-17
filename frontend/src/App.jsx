@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight, Search, Check, AlertCircle, FileText,
   RotateCcw, Eye, ShieldCheck, Zap, Split, PenLine, Award, Sparkles,
-  Copy, Download
+  Copy, Download, LogOut
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -68,8 +68,183 @@ export default function App() {
   const [stagePercentages, setStagePercentages] = useState({});
   const [copied, setCopied] = useState(false);
   
+  // MongoDB Auth & History State
+  const [token, setToken] = useState(localStorage.getItem('arcs_token') || '');
+  const [userEmail, setUserEmail] = useState(localStorage.getItem('arcs_email') || '');
+  const [history, setHistory] = useState([]);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState(null);
+
   const inputRef = useRef(null);
   const runTopic = useRef('');
+
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:7860";
+
+  const fetchHistory = async (activeToken) => {
+    if (!activeToken) return;
+    setHistoryLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/history`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setHistory(data.history || []);
+      } else {
+        if (response.status === 401) {
+          handleLogout();
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchHistory(token);
+    } else {
+      setHistory([]);
+    }
+  }, [token]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPassword })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        localStorage.setItem('arcs_token', data.token);
+        localStorage.setItem('arcs_email', data.email);
+        setToken(data.token);
+        setUserEmail(data.email);
+        setAuthPassword('');
+        setAuthEmail('');
+      } else {
+        setAuthError(data.error || 'Login failed');
+      }
+    } catch (err) {
+      setAuthError('Connection failed. Please check backend.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: authEmail, password: authPassword })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setAuthMode('login');
+        const loginResp = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail, password: authPassword })
+        });
+        const loginData = await loginResp.json();
+        if (loginResp.ok) {
+          localStorage.setItem('arcs_token', loginData.token);
+          localStorage.setItem('arcs_email', loginData.email);
+          setToken(loginData.token);
+          setUserEmail(loginData.email);
+          setAuthPassword('');
+          setAuthEmail('');
+        } else {
+          setAuthError('Registered successfully, but login failed.');
+        }
+      } else {
+        setAuthError(data.error || 'Registration failed');
+      }
+    } catch (err) {
+      setAuthError('Connection failed. Please check backend.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('arcs_token');
+    localStorage.removeItem('arcs_email');
+    setToken('');
+    setUserEmail('');
+    setHistory([]);
+    setTopic('');
+    setPhase('idle');
+    setStatus({});
+    setResults({});
+    setMetadata({});
+    setStagePercentages({});
+    setActiveHistoryId(null);
+  };
+
+  const handleLoadHistoryItem = async (itemId) => {
+    if (phase === 'running') return;
+    setActiveHistoryId(itemId);
+    setPhase('loading_history');
+    try {
+      const response = await fetch(`${API_BASE}/api/history/${itemId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setTopic(data.topic);
+        runTopic.current = data.topic;
+        setResults(data.results || {});
+        setMetadata(data.metadata || {});
+        
+        const completedStages = {};
+        const percentages = {};
+        STAGES.forEach(s => {
+          completedStages[s.id] = 'done';
+          percentages[s.id] = 100;
+        });
+        setStatus(completedStages);
+        setStagePercentages(percentages);
+        setPhase('done');
+      } else {
+        setErrorMsg(data.error || 'Failed to load report from history');
+        setPhase('error');
+      }
+    } catch (err) {
+      setErrorMsg('Failed to connect to backend.');
+      setPhase('error');
+    }
+  };
+
+  const handleNewQuery = () => {
+    if (phase === 'running') return;
+    setTopic('');
+    setPhase('idle');
+    setStatus({});
+    setResults({});
+    setMetadata({});
+    setStagePercentages({});
+    setActiveHistoryId(null);
+    if (inputRef.current) {
+      inputRef.current.value = '';
+      inputRef.current.focus();
+    }
+  };
 
   const EXPECTED_DURATIONS = {
     planner: 8,
@@ -176,12 +351,15 @@ export default function App() {
     STAGES.forEach(s => { initialStatus[s.id] = 'idle'; });
     setStatus(initialStatus);
 
-    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:7860";
+    const headers = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
     
     try {
       const response = await fetch(`${API_BASE}/api/research-stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: headers,
         body: JSON.stringify({ topic: runTopic.current }),
       });
 
@@ -213,6 +391,7 @@ export default function App() {
                 setResults(event.results);
                 setMetadata(event.metadata);
                 setPhase('done');
+                fetchHistory(token);
               } else if (event.type === "error") {
                 setErrorMsg(event.error);
                 setPhase('error');
@@ -230,64 +409,369 @@ export default function App() {
     }
   };
 
-  const reset = () => {
-    setPhase('idle');
-    setTopic('');
-    setResults({});
-    setStatus({});
-    setTimeout(() => inputRef.current?.focus(), 100);
-  };
+  if (!token) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'radial-gradient(circle at top left, #121820, #080a0f)',
+        padding: '1.5rem',
+        fontFamily: 'var(--font-sans)'
+      }}>
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          borderRadius: '16px',
+          padding: '2.5rem',
+          width: '100%',
+          maxWidth: '400px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)'
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h1 style={{
+              fontSize: '1.8rem',
+              fontWeight: 700,
+              color: 'var(--accent-base)',
+              letterSpacing: '-0.05em',
+              marginBottom: '0.25rem'
+            }}>
+              ARCS
+            </h1>
+            <p style={{ fontSize: '0.8rem', color: '#888', fontWeight: 500 }}>
+              Siva's Research Curation System
+            </p>
+          </div>
+
+          <form onSubmit={authMode === 'login' ? handleLogin : handleRegister}>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '0.5rem', fontWeight: 600 }}>EMAIL ADDRESS</label>
+              <input
+                type="email"
+                required
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="you@example.com"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  padding: '0.75rem 1rem',
+                  color: '#fff',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#aaa', marginBottom: '0.5rem', fontWeight: 600 }}>PASSWORD</label>
+              <input
+                type="password"
+                required
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                placeholder="••••••••"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  padding: '0.75rem 1rem',
+                  color: '#fff',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            {authError && (
+              <div style={{
+                background: 'rgba(220, 38, 38, 0.1)',
+                border: '1px solid rgba(220, 38, 38, 0.2)',
+                borderRadius: '8px',
+                padding: '0.75rem',
+                color: '#f87171',
+                fontSize: '0.8rem',
+                marginBottom: '1.25rem',
+                textAlign: 'center'
+              }}>
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={authLoading}
+              style={{
+                width: '100%',
+                background: 'var(--accent-base)',
+                color: '#000',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '0.85rem',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'opacity 0.2s',
+                opacity: authLoading ? 0.7 : 1
+              }}
+            >
+              {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
+
+          <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+            <span style={{ fontSize: '0.8rem', color: '#666' }}>
+              {authMode === 'login' ? "Don't have an account? " : "Already have an account? "}
+            </span>
+            <button
+              onClick={() => {
+                setAuthMode(authMode === 'login' ? 'register' : 'login');
+                setAuthError('');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--accent-base)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: 0
+              }}
+            >
+              {authMode === 'login' ? 'Register' : 'Sign In'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col relative" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header className="glass-panel" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '1.25rem 2.5rem', position: 'sticky', top: 0, zIndex: 100,
-        borderBottom: '1px solid var(--border-base)', borderTop: 'none', borderLeft: 'none', borderRight: 'none'
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', overflow: 'hidden' }}>
+      {/* LEFT SIDEBAR */}
+      <aside className="glass-panel" style={{
+        width: '320px',
+        borderRight: '1px solid var(--border-base)',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0,
+        background: 'var(--bg-surface)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <img src="/logo.png" alt="Logo" style={{ height: '32px', width: 'auto', objectFit: 'contain', display: 'block', transform: 'translateY(-1px)' }} />
-          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.05em', lineHeight: 1 }}>
+        {/* Sidebar Header: Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1.5rem', borderBottom: '1px solid var(--border-base)' }}>
+          <img src="/logo.png" alt="Logo" style={{ height: '28px', width: 'auto', objectFit: 'contain' }} />
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', fontWeight: 600, letterSpacing: '0.05em' }}>
             ARC<span style={{ color: 'var(--accent-base)' }}>S</span>
           </span>
         </div>
-        
-        <AnimatePresence>
-          {phase !== 'idle' && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              style={{ flex: 1, display: 'flex', justifyContent: 'center' }}
+
+        {/* User Card */}
+        <div style={{
+          margin: '1rem 1rem 1rem',
+          padding: '0.85rem',
+          background: 'rgba(255, 255, 255, 0.015)',
+          border: '1px solid var(--border-base)',
+          borderRadius: '10px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.04)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              color: 'var(--accent-base)'
+            }}>
+              {userEmail ? userEmail.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div style={{ overflow: 'hidden', flex: 1 }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {userEmail ? userEmail.split('@')[0] : 'User'}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {userEmail}
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Log Out"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-tertiary)',
+                cursor: 'pointer',
+                padding: '4px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseOut={e => e.currentTarget.style.color = 'var(--text-tertiary)'}
             >
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* New Query Button */}
+        <div style={{ padding: '0 1rem 1rem' }}>
+          <button
+            onClick={handleNewQuery}
+            disabled={phase === 'running'}
+            style={{
+              width: '100%',
+              background: 'var(--accent-base)',
+              color: '#000',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '0.65rem',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: phase === 'running' ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              opacity: phase === 'running' ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
+          >
+            + New Query
+          </button>
+        </div>
+
+        {/* Recent Research History Title */}
+        <div style={{
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          color: 'var(--text-tertiary)',
+          letterSpacing: '0.08em',
+          padding: '0.5rem 1rem',
+          borderTop: '1px solid var(--border-base)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.02)'
+        }}>
+          RECENT RESEARCH
+        </div>
+
+        {/* Recent Research History list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+          {historyLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem', color: 'var(--text-tertiary)', fontSize: '0.8rem' }}>
+              Loading history...
+            </div>
+          ) : history.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-tertiary)', fontSize: '0.8rem' }}>
+              No recent searches
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              {history.map(item => {
+                const isActive = activeHistoryId === item.id;
+                const dateObj = new Date(item.timestamp);
+                const timeStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleLoadHistoryItem(item.id)}
+                    disabled={phase === 'running'}
+                    style={{
+                      width: '100%',
+                      background: isActive ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '0.65rem 0.85rem',
+                      textAlign: 'left',
+                      cursor: phase === 'running' ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.15rem',
+                      borderLeft: isActive ? '3px solid var(--accent-base)' : '3px solid transparent',
+                      transition: 'all 0.2s',
+                      boxSizing: 'border-box'
+                    }}
+                    onMouseOver={e => { if (!isActive && phase !== 'running') e.currentTarget.style.background = 'rgba(255, 255, 255, 0.015)'; }}
+                    onMouseOut={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{
+                      fontSize: '0.8rem',
+                      fontWeight: isActive ? 600 : 500,
+                      color: isActive ? 'var(--accent-base)' : 'var(--text-primary)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      width: '100%'
+                    }}>
+                      {item.topic}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>
+                      <span>Score: {item.metadata?.quality_score || 'N/A'}</span>
+                      <span>{timeStr}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* RIGHT CONTENT CONTAINER */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* HEADER */}
+        <header className="glass-panel" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '1.25rem 2.5rem', borderBottom: '1px solid var(--border-base)',
+          borderTop: 'none', borderLeft: 'none', borderRight: 'none', background: 'var(--bg-surface)'
+        }}>
+          <div>
+            {phase !== 'idle' && (
               <div style={{
                 fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-tertiary)',
-                maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                maxWidth: '600px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
               }}>
                 <span style={{ color: 'var(--accent-base)', marginRight: '8px', letterSpacing: '0.1em' }}>TOPIC:</span>
                 {runTopic.current}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            {phase !== 'idle' && phase !== 'running' && (
+              <button onClick={handleNewQuery} style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent',
+                border: '1px solid var(--border-base)', color: 'var(--text-secondary)',
+                fontFamily: 'var(--font-sans)', fontSize: '0.8rem', fontWeight: 500,
+                padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer',
+                transition: 'all 0.2s'
+              }} onMouseOver={e => e.currentTarget.style.borderColor = 'var(--text-muted)'}
+                 onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border-base)'}>
+                <RotateCcw size={14} /> New Query
+              </button>
+            )}
+          </div>
+        </header>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {phase !== 'idle' && (
-            <button onClick={reset} style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent',
-              border: '1px solid var(--border-base)', color: 'var(--text-secondary)',
-              fontFamily: 'var(--font-sans)', fontSize: '0.8rem', fontWeight: 500,
-              padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer',
-              transition: 'all 0.2s'
-            }} onMouseOver={e => e.currentTarget.style.borderColor = 'var(--text-muted)'}
-               onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border-base)'}>
-              <RotateCcw size={14} /> New Query
-            </button>
-          )}
-        </div>
-      </header>
-
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        <AnimatePresence mode="wait">
-          {phase === 'idle' && (
+        {/* MAIN CONTAINER (SCROLLABLE) */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <main style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+            <AnimatePresence mode="wait">
+              {phase === 'idle' && (
             <motion.div
               key="hero"
               initial={{ opacity: 0 }}
@@ -585,27 +1069,29 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
-      </main>
+          </main>
 
-      <footer style={{
-        padding: '2rem 2.5rem',
-        borderTop: '1px solid var(--border-base)',
-        background: 'var(--bg-surface)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontFamily: 'var(--font-sans)',
-        fontSize: '0.85rem',
-        color: 'var(--text-secondary)',
-        zIndex: 10
-      }}>
-        <div>
-          © 2026 <span style={{ color: 'var(--accent-base)', fontWeight: 500 }}>Siva</span>. All Rights Reserved.
+          <footer style={{
+            padding: '2rem 2.5rem',
+            borderTop: '1px solid var(--border-base)',
+            background: 'var(--bg-surface)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+            zIndex: 10
+          }}>
+            <div>
+              © 2026 <span style={{ color: 'var(--accent-base)', fontWeight: 500 }}>Siva</span>. All Rights Reserved.
+            </div>
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-tertiary)' }}>Advanced Research & Curation System</span>
+            </div>
+          </footer>
         </div>
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-          <span style={{ color: 'var(--text-tertiary)' }}>Advanced Research & Curation System</span>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }
