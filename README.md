@@ -139,8 +139,8 @@ Multi-Agent-System/
 
 ## Deployment Configuration
 
-- **Frontend Deployment**: Configured for **Vercel** with a clean Vite build script.
-- **Backend Deployment**: Ready for **Hugging Face Spaces** or **Render** utilizing the configured `Dockerfile` and `render.yaml`.
+- **Frontend Deployment**: Configured for **Vercel** (serving the React frontend web app).
+- **Backend Deployment**: Configured for **Render** (hosting the Docker container for the Flask API server).
 
 ---
 
