@@ -77,10 +77,10 @@ import bcrypt
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/arcs")
-JWT_SECRET = os.getenv("JWT_SECRET", "arcs_super_secret_key_2026")
+JWT_SECRET = os.getenv("JWT_SECRET", "arcs_super_secret_key_2026_pro_secure_hash")
 
 try:
     client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
@@ -143,7 +143,7 @@ def register():
             db.users.insert_one({
                 "email": email,
                 "password_hash": password_hash,
-                "created_at": datetime.utcnow()
+                "created_at": datetime.now(timezone.utc)
             })
         else:
             if email == "mock@example.com":
@@ -176,7 +176,7 @@ def login():
                 
         token = jwt.encode({
             'user_id': user_id_str,
-            'exp': datetime.utcnow() + timedelta(days=7)
+            'exp': datetime.now(timezone.utc) + timedelta(days=7)
         }, JWT_SECRET, algorithm="HS256")
         
         return jsonify({
@@ -198,7 +198,7 @@ def get_history(current_user):
                 history_list.append({
                     "id": str(r["_id"]),
                     "topic": r["topic"],
-                    "timestamp": r.get("metadata", {}).get("timestamp", datetime.utcnow().isoformat()),
+                    "timestamp": r.get("metadata", {}).get("timestamp", datetime.now(timezone.utc).isoformat()),
                     "metadata": {
                         "confidence_score": r.get("metadata", {}).get("confidence_score", 0.85),
                         "quality_score": r.get("metadata", {}).get("quality_score", 8.0),
@@ -212,7 +212,7 @@ def get_history(current_user):
                 {
                     "id": "60c72b2f9b1d8e2b8c8d8e8f",
                     "topic": "Example Research Report",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "metadata": {
                         "confidence_score": 0.85,
                         "quality_score": 8.0,
