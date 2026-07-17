@@ -52,6 +52,12 @@ A sophisticated, enterprise-grade multi-agent AI research pipeline with an elega
 - **Copy**: Copies the report text directly to your clipboard.
 - **PDF Export**: Generates and formats a print-ready document to save as PDF.
 
+### 7. MongoDB User Auth & Research History
+- **JWT Auth & Password Security**: Secure user registration and login endpoints utilizing `bcrypt` password hashing and stateless JSON Web Tokens (JWT).
+- **Persistent Research History**: Automatically saves completed research runs to MongoDB.
+- **Sleek Split-Screen Sidebar**: Houses a user profile card, a query reset function, and a scrollable recent queries feed. Clicking any item instantly loads the saved results from MongoDB without re-running.
+- **Mock Auth Fallback**: Automatic mock database mode if MongoDB is not connected, ensuring local/production servers start up cleanly.
+
 ---
 
 ## Project Structure
@@ -93,9 +99,11 @@ Multi-Agent-System/
    ```
    Add your keys:
    ```env
-   GOOGLE_API_KEY=your_google_gemini_key
-   TAVILY_API_KEY=your_tavily_search_key
-   ```
+    GOOGLE_API_KEY=your_google_gemini_key
+    TAVILY_API_KEY=your_tavily_search_key
+    MONGODB_URI=mongodb://localhost:27017/arcs  # Optional: defaults to local MongoDB
+    JWT_SECRET=your_jwt_secret_key             # Optional: defaults to secure default
+    ```
 
 3. **Run Backend Server**:
    ```bash
