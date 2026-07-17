@@ -82,7 +82,8 @@ mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/arcs")
 JWT_SECRET = os.getenv("JWT_SECRET", "arcs_super_secret_key_2026_pro_secure_hash")
 
 try:
-    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+    import certifi
+    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
     client.server_info() # Validate connection
     db = client.get_database("arcs")
     print("✅ Connected to MongoDB database successfully!")
