@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up user and permissions for Hugging Face
+# Set up non-root user and permissions for container security
 RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user \
