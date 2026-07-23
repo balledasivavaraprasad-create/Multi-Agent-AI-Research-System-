@@ -12,5 +12,8 @@ services:
         sync: true
       - key: TAVILY_API_KEY
         sync: true
+      - key: GROQ_API_KEY
+        sync: true
       - key: MONGODB_URI
         sync: true
+
