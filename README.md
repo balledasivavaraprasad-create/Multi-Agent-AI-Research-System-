@@ -20,12 +20,13 @@ Calculates a multi-factor transparent trust score (0–10) with detailed breakdo
 - **Cross-Corroboration (20%)**: Boosts confidence when independent domains report matching factual claims.
 - **Primary Citation Check (20%)**: Outbound reference heuristics evaluating links to `.gov`, `.edu`, `arxiv.org`, or `doi.org`.
 
-### 4. Cross-Vendor Model Redundancy
-Includes robust cross-vendor failover logic in `agents.py`:
-- **Primary**: Google Gemini 2.5 Flash
-- **Secondary**: Google Gemini 2.0 Flash
-- **Tertiary (Cross-Vendor)**: Groq (`llama-3.3-70b-versatile`) or OpenRouter (`meta-llama/llama-3.3-70b-instruct`) when `GROQ_API_KEY` or `OPENROUTER_API_KEY` is set.
-- **Safety Fallback**: Google Gemini 1.5 Flash.
+### 4. High-Capacity Multi-Model & Key-Rotation Failover
+To reliably serve 50–100+ research runs per day without hitting API quota exhaustion or rate limit (429) bottlenecks, `agents.py` dynamically builds a multi-tier fallback chain spanning 12+ model targets across Google Gemini, Groq, and OpenRouter with automatic API key rotation:
+- **Google Gemini Tiers**: `gemini-2.5-flash` → `gemini-2.0-flash` → `gemini-2.0-flash-lite` → `gemini-1.5-flash` → `gemini-1.5-flash-8b`.
+- **API Key Rotation**: Automatically rotates across auxiliary environment keys (`GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, `GOOGLE_API_KEY_3`) when quotas are reached.
+- **Groq High-RPM Tiers**: `llama-3.3-70b-versatile` → `llama-3.1-8b-instant` → `mixtral-8x7b-32768` → `gemma2-9b-it` (rotates across `GROQ_API_KEY`, `GROQ_API_KEY_2`).
+- **OpenRouter Free/Open Tiers**: `llama-3.3-70b-instruct` → `deepseek-r1-distill-llama-70b` → `gemma-2-9b-it` → `mistral-7b-instruct`.
+
 
 ### 5. Citation Grounding
 - **Grounding Agent**: Injects inline numbered references (`[1]`, `[2]`) into the report and outputs a `Citations & Sources` bibliography matching URLs with validated snippets.

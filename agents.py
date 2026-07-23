@@ -38,61 +38,114 @@ from tools import web_search, scrape_url
 
 load_dotenv()
 
-google_api_key = os.getenv("GOOGLE_API_KEY")
-if not google_api_key or google_api_key.strip() == "":
-    print("\n⚠️ WARNING: GOOGLE_API_KEY is not set or is empty in your environment variables.")
-    print("Please copy .env.example to .env and configure your GOOGLE_API_KEY.")
-    print("Using 'placeholder_key' fallback to prevent import crashes.\n")
-    google_api_key = "placeholder_key"
+def create_resilient_llm():
+    # Gather all configured Google Gemini API Keys for key-rotation failover
+    google_keys = []
+    for k in ["GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "GOOGLE_API_KEY_4"]:
+        val = os.getenv(k)
+        if val and val.strip() and val.strip() != "placeholder_key":
+            google_keys.append(val.strip())
+            
+    if not google_keys:
+        google_keys = [os.getenv("GOOGLE_API_KEY", "placeholder_key")]
 
-# Initialize Google Gemini model with automatic cross-vendor fallbacks
-gemini_25 = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=google_api_key,
-    temperature=0,
-    max_retries=2,
-    timeout=60,
-)
+    models_to_try = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
+    ]
+    
+    chain_models = []
+    
+    # 1. Build Google Gemini Model Chain across all keys and model variants
+    for g_key in google_keys:
+        for m_name in models_to_try:
+            try:
+                m = ChatGoogleGenerativeAI(
+                    model=m_name,
+                    google_api_key=g_key,
+                    temperature=0,
+                    max_retries=1,
+                    timeout=45,
+                )
+                chain_models.append(m)
+            except Exception:
+                pass
+                
+    # 2. Add Groq Models & Key Rotation
+    groq_keys = []
+    for k in ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3"]:
+        val = os.getenv(k)
+        if val and val.strip():
+            groq_keys.append(val.strip())
+            
+    groq_models = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it"
+    ]
+    
+    if groq_keys:
+        try:
+            from langchain_groq import ChatGroq
+            for gr_key in groq_keys:
+                for gr_model in groq_models:
+                    try:
+                        chain_models.append(
+                            ChatGroq(model_name=gr_model, groq_api_key=gr_key, temperature=0, max_retries=1)
+                        )
+                    except Exception:
+                        pass
+        except ImportError:
+            pass
 
-gemini_20 = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
-    google_api_key=google_api_key,
-    temperature=0,
-    max_retries=2,
-    timeout=60,
-)
+    # 3. Add OpenRouter Models
+    openrouter_keys = []
+    for k in ["OPENROUTER_API_KEY", "OPENROUTER_API_KEY_2"]:
+        val = os.getenv(k)
+        if val and val.strip():
+            openrouter_keys.append(val.strip())
+            
+    openrouter_models = [
+        "meta-llama/llama-3.3-70b-instruct",
+        "deepseek/deepseek-r1-distill-llama-70b:free",
+        "google/gemma-2-9b-it:free",
+        "mistralai/mistral-7b-instruct:free"
+    ]
+    
+    if openrouter_keys:
+        try:
+            from langchain_community.chat_models import ChatOpenAI
+            for or_key in openrouter_keys:
+                for or_model in openrouter_models:
+                    try:
+                        chain_models.append(
+                            ChatOpenAI(base_url="https://openrouter.ai/api/v1", api_key=or_key, model=or_model, temperature=0)
+                        )
+                    except Exception:
+                        pass
+        except ImportError:
+            pass
+            
+    if not chain_models:
+        return ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=google_keys[0],
+            temperature=0,
+            max_retries=2,
+            timeout=60,
+        )
 
-fallbacks = [gemini_20]
+    primary = chain_models[0]
+    if len(chain_models) > 1:
+        return primary.with_fallbacks(chain_models[1:])
+    return primary
 
-# Add Tertiary Cross-Vendor Fallback (Groq or OpenRouter) if keys are available
-groq_key = os.getenv("GROQ_API_KEY")
-openrouter_key = os.getenv("OPENROUTER_API_KEY")
+llm = create_resilient_llm()
 
-if groq_key:
-    try:
-        from langchain_groq import ChatGroq
-        fallbacks.append(ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=groq_key, temperature=0, max_retries=2))
-    except Exception:
-        pass
-elif openrouter_key:
-    try:
-        from langchain_community.chat_models import ChatOpenAI
-        fallbacks.append(ChatOpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_key, model="meta-llama/llama-3.3-70b-instruct", temperature=0))
-    except Exception:
-        pass
-
-# Final safety fallback
-fallbacks.append(
-    ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
-        google_api_key=google_api_key,
-        temperature=0,
-        max_retries=2,
-        timeout=60,
-    )
-)
-
-llm = gemini_25.with_fallbacks(fallbacks)
 
 def build_search_agent():
     return create_agent(
