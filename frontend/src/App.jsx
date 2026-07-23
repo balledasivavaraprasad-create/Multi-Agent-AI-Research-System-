@@ -85,9 +85,12 @@ export default function App() {
   const inputRef = useRef(null);
   const runTopic = useRef('');
 
-  const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
-    ? "http://localhost:7860" 
-    : "https://arcs-backend-siva.onrender.com";
+  const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || (
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+      ? "http://localhost:7860" 
+      : "https://arcs-backend-siva.onrender.com"
+  );
+
 
   const fetchHistory = async (activeToken) => {
     if (!activeToken) return;
