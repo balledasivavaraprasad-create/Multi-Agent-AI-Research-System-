@@ -34,3 +34,5 @@ gunicorn
 pymongo
 bcrypt
 pyjwt
+pytest
+langchain-groq

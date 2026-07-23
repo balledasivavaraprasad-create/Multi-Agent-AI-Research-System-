@@ -17,12 +17,14 @@ const STAGES = [
   { id: 'planner', num: '01', label: 'Planning', desc: 'Structuring research into focused questions', icon: Split },
   { id: 'research', num: '02', label: 'Research', desc: 'Gathering multi-source data parallelly', icon: Search },
   { id: 'claim_extraction', num: '03', label: 'Claim Extraction', desc: 'Extracting key factual claims requiring verification', icon: Zap },
-  { id: 'fact_verification', num: '04', label: 'Fact Verification', desc: 'Searching evidence and verifying claims in parallel', icon: ShieldCheck },
-  { id: 'analysis', num: '05', label: 'Analysis & Synthesis', desc: 'Extracting insights and integrating contrarian views', icon: Eye },
-  { id: 'writer', num: '06', label: 'Writing', desc: 'Composing initial research report', icon: PenLine },
-  { id: 'critic_loop', num: '07', label: 'Quality Loop', desc: 'Iterative refinement and scoring', icon: AlertCircle },
-  { id: 'grounded_citations', num: '08', label: 'Grounded Citations', desc: 'Aligning evidence, inline references and footnotes', icon: Award }
+  { id: 'claim_fidelity', num: '04', label: 'Claim Fidelity Check', desc: 'Auditing extracted claims against source text neutrality', icon: Check },
+  { id: 'fact_verification', num: '05', label: 'Fact Verification', desc: 'Searching evidence and verifying claims in parallel', icon: ShieldCheck },
+  { id: 'analysis', num: '06', label: 'Analysis & Synthesis', desc: 'Extracting insights and integrating contrarian views', icon: Eye },
+  { id: 'writer', num: '07', label: 'Writing', desc: 'Composing initial research report', icon: PenLine },
+  { id: 'critic_loop', num: '08', label: 'Quality Loop', desc: 'Iterative refinement and scoring', icon: AlertCircle },
+  { id: 'grounded_citations', num: '09', label: 'Grounded Citations', desc: 'Aligning evidence, inline references and footnotes', icon: Award }
 ];
+
 
 const CircularProgress = ({ value }) => {
   const radius = 14;
@@ -959,7 +961,38 @@ export default function App() {
                             {metadata.metrics.verification_confidence}%
                           </div>
                         </div>
+                        <div style={{ background: 'rgba(255,255,255,0.01)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-base)' }}>
+                          <div style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>ESTIMATED RUN COST</div>
+                          <div style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--accent-base)', fontFamily: 'var(--font-mono)' }}>
+                            ${Number(metadata.metrics.cost_usd || 0.00).toFixed(4)}
+                          </div>
+                        </div>
                       </div>
+
+                      {metadata.metrics.source_breakdowns && metadata.metrics.source_breakdowns.length > 0 && (
+                        <div style={{ borderTop: '1px solid var(--border-base)', paddingTop: '1.5rem' }}>
+                          <div style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '1rem', letterSpacing: '0.05em' }}>MULTI-FACTOR SOURCE TRUST BREAKDOWN</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {metadata.metrics.source_breakdowns.map((item, idx) => (
+                              <div key={idx} style={{ background: 'rgba(255,255,255,0.015)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-base)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{item.domain}</span>
+                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--accent-base)', fontWeight: 600 }}>{item.score}/10</span>
+                                </div>
+                                {item.breakdown && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                    <span>• Domain: {item.breakdown.domain_tier}</span>
+                                    <span>• Recency: {item.breakdown.recency}</span>
+                                    <span>• Corroboration: {item.breakdown.corroboration}</span>
+                                    <span>• Citations: {item.breakdown.primary_citations}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div style={{ borderTop: '1px solid var(--border-base)', paddingTop: '1.5rem' }}>
                         <div style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', marginBottom: '1rem', letterSpacing: '0.05em' }}>LATENCY PROFILE BY STAGE</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -981,6 +1014,7 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+
                   )}
 
                   <motion.div 

@@ -19,7 +19,7 @@ if not os.getenv("TAVILY_API_KEY"):
 from agents import (
     planner_prompt, multi_reader_prompt, contrarian_prompt,
     writer_prompt, critic_prompt, revision_prompt,
-    claim_extractor_prompt, fact_verifier_prompt, grounding_prompt,
+    claim_extractor_prompt, claim_fidelity_prompt, fact_verifier_prompt, grounding_prompt,
     STAGES, llm
 )
 from tools import web_search, scrape_url, get_source_trust_score
@@ -46,7 +46,6 @@ def track_call(response, metrics):
         out_t = response.usage_metadata.get('output_tokens', 0)
         metrics['input_tokens'] += in_t
         metrics['output_tokens'] += out_t
-        metrics['cost_usd'] += get_model_cost(in_t, out_t)
 
 def invoke_llm_chain(prompt_template, inputs, metrics):
     prompt_val = prompt_template.invoke(inputs)
@@ -67,8 +66,10 @@ def run_research_pipeline(topic: str) -> dict:
         'cost_usd': 0.0,
         'input_tokens': 0,
         'output_tokens': 0,
+        'tavily_searches': 0,
         'overall_source_quality': 7.0,
         'verification_confidence': 85.0,
+        'source_breakdowns': [],
         'latencies': {}
     }
     
@@ -93,20 +94,40 @@ def run_research_pipeline(topic: str) -> dict:
         
         def execute_single_search(q):
             time.sleep(1.0)
+            metrics['tavily_searches'] += 1
             return web_search.invoke({"query": q})
             
         with ThreadPoolExecutor(max_workers=4) as executor:
             search_results = list(executor.map(execute_single_search, queries))
             
-        urls = []
+        urls_with_snippets = []
         for res in search_results:
             for line in res.split('\n'):
                 if line.startswith("URL : "):
-                    urls.append(line[6:].strip())
+                    urls_with_snippets.append({"url": line[6:].strip(), "snippet": res[:300]})
         
-        trust_scores = [get_source_trust_score(url) for url in urls]
+        trust_breakdowns = []
+        trust_scores = []
+        domain_counts = {}
+        for item in urls_with_snippets:
+            from urllib.parse import urlparse
+            d = urlparse(item["url"]).netloc.lower().replace("www.", "")
+            domain_counts[d] = domain_counts.get(d, 0) + 1
+            
+        for item in urls_with_snippets:
+            from urllib.parse import urlparse
+            d = urlparse(item["url"]).netloc.lower().replace("www.", "")
+            res = get_source_trust_score(
+                item["url"],
+                snippet=item["snippet"],
+                domain_frequency=domain_counts.get(d, 1)
+            )
+            trust_scores.append(res["score"])
+            trust_breakdowns.append(res)
+            
         overall_source_quality = round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 7.0
         metrics['overall_source_quality'] = overall_source_quality
+        metrics['source_breakdowns'] = trust_breakdowns[:5]
         
         search_content = "\n\n".join(search_results)
         state['results']['research'] = search_content
@@ -117,6 +138,12 @@ def run_research_pipeline(topic: str) -> dict:
         claims_text = invoke_llm_chain(claim_extractor_prompt, {"report": search_content[:1500]}, metrics)
         state['results']['claim_extraction'] = claims_text
         metrics['latencies']['claim_extraction'] = round(time.time() - claim_start, 2)
+        
+        fidelity_start = time.time()
+        time.sleep(REQUEST_DELAY)
+        fidelity_text = invoke_llm_chain(claim_fidelity_prompt, {"claims": claims_text, "source_text": search_content[:1500]}, metrics)
+        state['results']['claim_fidelity'] = fidelity_text
+        metrics['latencies']['claim_fidelity'] = round(time.time() - fidelity_start, 2)
         
         verify_start = time.time()
         time.sleep(REQUEST_DELAY)
@@ -129,6 +156,7 @@ def run_research_pipeline(topic: str) -> dict:
         
         def verify_single_claim(claim):
             time.sleep(1.0)
+            metrics['tavily_searches'] += 1
             evidence = web_search.invoke({"query": claim})
             verifier_res = invoke_llm_chain(
                 fact_verifier_prompt,
@@ -136,7 +164,12 @@ def run_research_pipeline(topic: str) -> dict:
                 metrics
             )
             try:
-                data = json.loads(verifier_res)
+                # Handle raw JSON or markdown code block json
+                clean_json = verifier_res.strip()
+                if clean_json.startswith("```"):
+                    clean_json = re.sub(r'^```(?:json)?\s*', '', clean_json)
+                    clean_json = re.sub(r'\s*```$', '', clean_json)
+                data = json.loads(clean_json)
             except:
                 data = {
                     "status": "Verified",
@@ -227,6 +260,11 @@ def run_research_pipeline(topic: str) -> dict:
         state['results']['grounded_citations'] = grounded_report
         metrics['latencies']['grounded_citations'] = round(time.time() - grounding_start, 2)
         
+        # Calculate final estimated cost: Tokens cost + Search API cost
+        llm_cost = get_model_cost(metrics['input_tokens'], metrics['output_tokens'])
+        tavily_cost = metrics['tavily_searches'] * 0.003
+        metrics['cost_usd'] = round(llm_cost + tavily_cost, 4)
+        
         final_output = {
             'status': 'success',
             'topic': topic,
@@ -256,3 +294,4 @@ if __name__ == "__main__":
     topic = input()
     result = run_research_pipeline(topic)
     print(json.dumps(result, indent=2))
+

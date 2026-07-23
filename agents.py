@@ -45,29 +45,54 @@ if not google_api_key or google_api_key.strip() == "":
     print("Using 'placeholder_key' fallback to prevent import crashes.\n")
     google_api_key = "placeholder_key"
 
-# Initialize Google Gemini model with automatic fallbacks to bypass daily request limits on free keys
-llm = ChatGoogleGenerativeAI(
+# Initialize Google Gemini model with automatic cross-vendor fallbacks
+gemini_25 = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=google_api_key,
     temperature=0,
     max_retries=2,
     timeout=60,
-).with_fallbacks([
+)
+
+gemini_20 = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash",
+    google_api_key=google_api_key,
+    temperature=0,
+    max_retries=2,
+    timeout=60,
+)
+
+fallbacks = [gemini_20]
+
+# Add Tertiary Cross-Vendor Fallback (Groq or OpenRouter) if keys are available
+groq_key = os.getenv("GROQ_API_KEY")
+openrouter_key = os.getenv("OPENROUTER_API_KEY")
+
+if groq_key:
+    try:
+        from langchain_groq import ChatGroq
+        fallbacks.append(ChatGroq(model_name="llama-3.3-70b-versatile", groq_api_key=groq_key, temperature=0, max_retries=2))
+    except Exception:
+        pass
+elif openrouter_key:
+    try:
+        from langchain_community.chat_models import ChatOpenAI
+        fallbacks.append(ChatOpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_key, model="meta-llama/llama-3.3-70b-instruct", temperature=0))
+    except Exception:
+        pass
+
+# Final safety fallback
+fallbacks.append(
     ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        google_api_key=google_api_key,
-        temperature=0,
-        max_retries=2,
-        timeout=60,
-    ),
-    ChatGoogleGenerativeAI(
-        model="gemini-flash-lite-latest",
+        model="gemini-1.5-flash",
         google_api_key=google_api_key,
         temperature=0,
         max_retries=2,
         timeout=60,
     )
-])
+)
+
+llm = gemini_25.with_fallbacks(fallbacks)
 
 def build_search_agent():
     return create_agent(
@@ -261,6 +286,12 @@ claim_extractor_prompt = ChatPromptTemplate.from_messages([
 ])
 claim_extractor_chain = claim_extractor_prompt | llm | StrOutputParser()
 
+claim_fidelity_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a claim fidelity auditor. Evaluate whether the extracted claims accurately and neutrally represent the underlying source text without distortion, exaggeration, or strawman framing.\nFor each claim, state if it is faithful (Yes/No) and provide a refined neutral version if needed."),
+    ("human", "Claims to Audit:\n{claims}\n\nSource Research Text:\n{source_text}")
+])
+claim_fidelity_chain = claim_fidelity_prompt | llm | StrOutputParser()
+
 fact_verifier_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an unbiased fact-checker. Verify the claim below against the provided search evidence.\nClaim: {claim}\n\nEvidence:\n{evidence}\n\nEvaluate the claim based on the evidence. Respond in a clean JSON format (with no markdown code block formatting) containing exactly these three fields:\n- status: 'Verified' | 'Not Verified' | 'Partially Verified'\n- confidence: a number from 0 to 100\n- snippet: a short, specific supporting text snippet from the evidence"),
     ("human", "Verify this claim.")
@@ -299,8 +330,16 @@ STAGES = [
         'chain': claim_extractor_chain,
     },
     {
-        'id': 'fact_verification',
+        'id': 'claim_fidelity',
         'num': '04',
+        'label': 'Claim Fidelity Check',
+        'full': 'Claim Fidelity Agent',
+        'desc': 'Auditing extracted claims against source text neutrality',
+        'chain': claim_fidelity_chain,
+    },
+    {
+        'id': 'fact_verification',
+        'num': '05',
         'label': 'Fact Verification',
         'full': 'Real-Time Fact Verification',
         'desc': 'Searching evidence and verifying claims in parallel',
@@ -308,7 +347,7 @@ STAGES = [
     },
     {
         'id': 'analysis',
-        'num': '05',
+        'num': '06',
         'label': 'Analysis & Synthesis',
         'full': 'Multi-Source Analysis',
         'desc': 'Extracting insights and integrating contrarian views',
@@ -316,7 +355,7 @@ STAGES = [
     },
     {
         'id': 'writer',
-        'num': '06',
+        'num': '07',
         'label': 'Writing',
         'full': 'Writer Agent',
         'desc': 'Composing initial research report',
@@ -324,7 +363,7 @@ STAGES = [
     },
     {
         'id': 'critic_loop',
-        'num': '07',
+        'num': '08',
         'label': 'Quality Loop',
         'full': 'Critic & Revision Loop',
         'desc': 'Iterative refinement and scoring',
@@ -332,7 +371,7 @@ STAGES = [
     },
     {
         'id': 'grounded_citations',
-        'num': '08',
+        'num': '09',
         'label': 'Grounded Citations',
         'full': 'Grounding & Citations Agent',
         'desc': 'Aligning evidence, inline references and footnotes',
@@ -341,4 +380,5 @@ STAGES = [
 ]
 
 STAGE_CONFIGS = {stage['id']: stage for stage in STAGES}
+
 

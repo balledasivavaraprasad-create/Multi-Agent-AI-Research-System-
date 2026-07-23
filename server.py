@@ -17,7 +17,7 @@ tavily_api_key = os.getenv("TAVILY_API_KEY")
 from agents import (
     planner_prompt, multi_reader_prompt, contrarian_prompt,
     writer_prompt, critic_prompt, revision_prompt,
-    claim_extractor_prompt, fact_verifier_prompt, grounding_prompt,
+    claim_extractor_prompt, claim_fidelity_prompt, fact_verifier_prompt, grounding_prompt,
     STAGES, llm
 )
 from tools import web_search, scrape_url, get_source_trust_score
@@ -56,7 +56,6 @@ def track_call(response, metrics):
         out_t = response.usage_metadata.get('output_tokens', 0)
         metrics['input_tokens'] += in_t
         metrics['output_tokens'] += out_t
-        metrics['cost_usd'] += get_model_cost(in_t, out_t)
 
 def invoke_llm_chain(prompt_template, inputs, metrics):
     prompt_val = prompt_template.invoke(inputs)
@@ -319,8 +318,10 @@ def research_stream():
                 'cost_usd': 0.0,
                 'input_tokens': 0,
                 'output_tokens': 0,
+                'tavily_searches': 0,
                 'overall_source_quality': 7.0,
                 'verification_confidence': 85.0,
+                'source_breakdowns': [],
                 'latencies': {}
             }
             
@@ -352,20 +353,40 @@ def research_stream():
                 
                 def execute_single_search(q):
                     time.sleep(1.0)
+                    metrics['tavily_searches'] += 1
                     return web_search.invoke({"query": q})
                     
                 with ThreadPoolExecutor(max_workers=4) as executor:
                     search_results = list(executor.map(execute_single_search, queries))
                     
-                urls = []
+                urls_with_snippets = []
                 for res in search_results:
                     for line in res.split('\n'):
                         if line.startswith("URL : "):
-                            urls.append(line[6:].strip())
+                            urls_with_snippets.append({"url": line[6:].strip(), "snippet": res[:300]})
                 
-                trust_scores = [get_source_trust_score(url) for url in urls]
+                trust_breakdowns = []
+                trust_scores = []
+                domain_counts = {}
+                for item in urls_with_snippets:
+                    from urllib.parse import urlparse
+                    d = urlparse(item["url"]).netloc.lower().replace("www.", "")
+                    domain_counts[d] = domain_counts.get(d, 0) + 1
+                    
+                for item in urls_with_snippets:
+                    from urllib.parse import urlparse
+                    d = urlparse(item["url"]).netloc.lower().replace("www.", "")
+                    res = get_source_trust_score(
+                        item["url"],
+                        snippet=item["snippet"],
+                        domain_frequency=domain_counts.get(d, 1)
+                    )
+                    trust_scores.append(res["score"])
+                    trust_breakdowns.append(res)
+                    
                 overall_source_quality = round(sum(trust_scores) / len(trust_scores), 1) if trust_scores else 7.0
                 metrics['overall_source_quality'] = overall_source_quality
+                metrics['source_breakdowns'] = trust_breakdowns[:5]
                 
                 search_content = "\n\n".join(search_results)
                 state['results']['research'] = search_content
@@ -381,7 +402,16 @@ def research_stream():
                 metrics['latencies']['claim_extraction'] = round(time.time() - claim_start, 2)
                 yield yield_event('stage_completed', 'claim_extraction', result=claims_text)
 
-                yield yield_event('stage_started', 'fact_verification', num=4)
+                yield yield_event('stage_started', 'claim_fidelity', num=4)
+                fidelity_start = time.time()
+                for ping in smart_sleep(REQUEST_DELAY):
+                    yield ping
+                fidelity_text = invoke_llm_chain(claim_fidelity_prompt, {"claims": claims_text, "source_text": search_content[:1500]}, metrics)
+                state['results']['claim_fidelity'] = fidelity_text
+                metrics['latencies']['claim_fidelity'] = round(time.time() - fidelity_start, 2)
+                yield yield_event('stage_completed', 'claim_fidelity', result=fidelity_text)
+
+                yield yield_event('stage_started', 'fact_verification', num=5)
                 verify_start = time.time()
                 for ping in smart_sleep(REQUEST_DELAY):
                     yield ping
@@ -394,6 +424,7 @@ def research_stream():
                 
                 def verify_single_claim(claim):
                     time.sleep(1.0)
+                    metrics['tavily_searches'] += 1
                     evidence = web_search.invoke({"query": claim})
                     verifier_res = invoke_llm_chain(
                         fact_verifier_prompt,
@@ -401,7 +432,11 @@ def research_stream():
                         metrics
                     )
                     try:
-                        data = json.loads(verifier_res)
+                        clean_json = verifier_res.strip()
+                        if clean_json.startswith("```"):
+                            clean_json = re.sub(r'^```(?:json)?\s*', '', clean_json)
+                            clean_json = re.sub(r'\s*```$', '', clean_json)
+                        data = json.loads(clean_json)
                     except:
                         data = {
                             "status": "Verified",
@@ -431,7 +466,7 @@ def research_stream():
                 metrics['latencies']['fact_verification'] = round(time.time() - verify_start, 2)
                 yield yield_event('stage_completed', 'fact_verification', result=fact_check_result)
 
-                yield yield_event('stage_started', 'analysis', num=5)
+                yield yield_event('stage_started', 'analysis', num=6)
                 analysis_start = time.time()
                 for ping in smart_sleep(REQUEST_DELAY):
                     yield ping
@@ -442,7 +477,7 @@ def research_stream():
                 metrics['latencies']['analysis'] = round(time.time() - analysis_start, 2)
                 yield yield_event('stage_completed', 'analysis', result=analysis_combined)
 
-                yield yield_event('stage_started', 'writer', num=6)
+                yield yield_event('stage_started', 'writer', num=7)
                 writer_start = time.time()
                 for ping in smart_sleep(REQUEST_DELAY):
                     yield ping
@@ -452,7 +487,7 @@ def research_stream():
                 metrics['latencies']['writer'] = round(time.time() - writer_start, 2)
                 yield yield_event('stage_completed', 'writer', result=writer_result)
 
-                yield yield_event('stage_started', 'critic_loop', num=7)
+                yield yield_event('stage_started', 'critic_loop', num=8)
                 critic_start = time.time()
                 max_iterations = 3
                 current_iteration = 0
@@ -494,7 +529,7 @@ def research_stream():
                 metrics['latencies']['critic_loop'] = round(time.time() - critic_start, 2)
                 yield yield_event('stage_completed', 'critic_loop', result=critic_feedback)
 
-                yield yield_event('stage_started', 'grounded_citations', num=8)
+                yield yield_event('stage_started', 'grounded_citations', num=9)
                 grounding_start = time.time()
                 for ping in smart_sleep(REQUEST_DELAY):
                     yield ping
@@ -508,6 +543,10 @@ def research_stream():
                 metrics['latencies']['grounded_citations'] = round(time.time() - grounding_start, 2)
                 yield yield_event('stage_completed', 'grounded_citations', result=grounded_report)
 
+                llm_cost = get_model_cost(metrics['input_tokens'], metrics['output_tokens'])
+                tavily_cost = metrics['tavily_searches'] * 0.003
+                metrics['cost_usd'] = round(llm_cost + tavily_cost, 4)
+
                 state['metadata'] = {
                     'confidence_score': round(avg_confidence / 10, 2),
                     'quality_score': quality_score,
@@ -516,6 +555,7 @@ def research_stream():
                     'timestamp': state['timestamp'],
                     'metrics': metrics
                 }
+
                 
                 # Auto-save finished run to MongoDB research history
                 if current_user and db is not None:

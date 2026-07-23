@@ -1,62 +1,62 @@
----
-title: AdvancedMultiAgentSystem
-emoji: 🌖
-colorFrom: green
-colorTo: indigo
-sdk: docker
-pinned: false
-app_port: 7860
----
-
 # ARCS — Siva's Advanced Research & Curation System
 
-A sophisticated, enterprise-grade multi-agent AI research pipeline with an elegant web interface, created and maintained by **Siva**. This system orchestrates specialized agents in an 8-stage workflow to conduct comprehensive research, perform parallel fact verification, score source quality, and compose grounded reports with inline citations.
+A multi-agent research pipeline with fact verification, multi-factor source scoring, and an interactive web interface, created and maintained by **Siva**. This system orchestrates specialized agents in a 9-stage workflow to conduct structured research, verify claim fidelity, cross-corroborate evidence, and compose grounded reports with inline citations.
 
 ## System Architecture & Features
 
 ### 1. Parallel Multi-Query Planning
 - **Planner Agent**: Generates 5–8 distinct, targeted research questions for the topic.
-- **Parallel Search execution**: Executes web searches for the queries concurrently using Python `ThreadPoolExecutor`, reducing pipeline latency.
+- **Parallel Search Execution**: Executes web searches for queries concurrently using Python `ThreadPoolExecutor`, reducing pipeline latency.
 
-### 2. Deep Fact Verification & Claim Extraction
+### 2. Claim Fidelity & Verification Rigor
 - **Claim Extractor Agent**: Pulls 3–5 core factual statements from gathered research.
+- **Claim Fidelity Check**: Runs an independent claim-fidelity evaluation to ensure extracted claims accurately and neutrally represent underlying source text without distortion.
 - **Evidence Verification Agent**: Searches and parses evidence for each claim in parallel. Returns structured JSON verdicts containing: verification status (`Verified`, `Partially Verified`, `Not Verified`), verification confidence, and matching source snippets.
 
-### 3. Source Trust Ranking
-- Rates sources based on domain credibility:
-  - **10/10**: Government portals (`.gov`, `.gov.in`)
-  - **9/10**: Academic platforms (`.edu`, `arxiv.org`, `ieee.org`)
-  - **8/10**: Top-tier global news (Reuters, Bloomberg, BBC, NYT)
-  - **7/10**: Wikipedia
-  - **5/10**: Technical blogs (`medium.com`, `blogspot.com`)
-  - **4/10**: General sites
-- Calculates the `overall_source_quality` as the weighted average score of all consulted sources.
+### 3. Multi-Factor Source Trust Scoring
+Calculates a multi-factor transparent trust score (0–10) with detailed breakdowns exposed in the dashboard:
+- **Domain Tier (40%)**: Primary government (`.gov`), academic institutions (`.edu`), scientific repositories (`arxiv.org`, `ieee.org`), and major news agencies.
+- **Recency Decay (20%)**: Evaluates article publication dates, decaying scores for articles >2 years old.
+- **Cross-Corroboration (20%)**: Boosts confidence when independent domains report matching factual claims.
+- **Primary Citation Check (20%)**: Outbound reference heuristics evaluating links to `.gov`, `.edu`, `arxiv.org`, or `doi.org`.
 
-### 4. Perplexity-Style Citation Grounding
+### 4. Cross-Vendor Model Redundancy
+Includes robust cross-vendor failover logic in `agents.py`:
+- **Primary**: Google Gemini 2.5 Flash
+- **Secondary**: Google Gemini 2.0 Flash
+- **Tertiary (Cross-Vendor)**: Groq (`llama-3.3-70b-versatile`) or OpenRouter (`meta-llama/llama-3.3-70b-instruct`) when `GROQ_API_KEY` or `OPENROUTER_API_KEY` is set.
+- **Safety Fallback**: Google Gemini 1.5 Flash.
+
+### 5. Citation Grounding
 - **Grounding Agent**: Injects inline numbered references (`[1]`, `[2]`) into the report and outputs a `Citations & Sources` bibliography matching URLs with validated snippets.
 
-### 5. Observability Dashboard
-- Displays overall **Source Quality** and **Fact-Check Accuracy**.
-- Profiles latencies across all 8 pipeline stages in a horizontal bar chart:
+### 6. Observability Dashboard & Cost Control
+- Displays overall **Source Quality**, **Fact-Check Accuracy**, and **Estimated USD Cost** per run.
+- Profiles latencies across all 9 pipeline stages:
   1. `Planner`: Planning queries
   2. `Research`: Parallel searching
   3. `Claim Extraction`: Extracting facts
-  4. `Fact Verification`: Parallel verification
-  5. `Analysis & Synthesis`: Synthesizing insights
-  6. `Writing`: Composing draft
-  7. `Quality Loop`: Iterative critic refinement
-  8. `Grounded Citations`: Grounding citations
-
-### 6. Interactive Frontend Actions
-- **Circular Progress Wheel**: Displays real-time progress percentages (0-100%) for the active agent stages.
-- **Copy**: Copies the report text directly to your clipboard.
-- **PDF Export**: Generates and formats a print-ready document to save as PDF.
+  4. `Claim Fidelity Check`: Neutrality audit
+  5. `Fact Verification`: Parallel verification
+  6. `Analysis & Synthesis`: Synthesizing insights
+  7. `Writing`: Composing draft
+  8. `Quality Loop`: Iterative critic refinement
+  9. `Grounded Citations`: Grounding citations
 
 ### 7. MongoDB User Auth & Research History
 - **JWT Auth & Password Security**: Secure user registration and login endpoints utilizing `bcrypt` password hashing and stateless JSON Web Tokens (JWT).
 - **Persistent Research History**: Automatically saves completed research runs to MongoDB.
-- **Sleek Split-Screen Sidebar**: Houses a user profile card, a query reset function, and a scrollable recent queries feed. Clicking any item instantly loads the saved results from MongoDB without re-running.
 - **Mock Auth Fallback**: Automatic mock database mode if MongoDB is not connected, ensuring local/production servers start up cleanly.
+
+---
+
+## Cost Controls & Rate Limits
+
+- **Per-Run Cost Estimator**: Tracks exact input/output tokens and Tavily search API calls ($0.003/search). Calculates total estimated run cost ($X.XX) displayed directly in the dashboard.
+- **Hard Safety Caps**:
+  - Max 4 parallel search queries per run
+  - Max 4 claims extracted and verified per run
+  - Max 3 critic loop revision iterations
 
 ---
 
@@ -67,15 +67,30 @@ Multi-Agent-System/
 ├── frontend/               # React (Vite) Frontend Web App
 │   ├── src/
 │   │   ├── App.jsx         # UI, circular progress, dashboard & print/copy
-│   │   └── index.css       # Clean styling and professional sans-serif typography
+│   │   └── index.css       # Styling and typography
 │   └── package.json
-├── agents.py               # Core Gemini Prompt chains and Fallback configuration
-├── tools.py                # Tavily search wrapper, scraper, and source trust scoring
-├── pipeline.py             # Local pipeline execution CLI
+├── tests/                  # Unit and integration test suite
+│   ├── test_source_scoring.py
+│   ├── test_verification_parsing.py
+│   ├── test_claim_fidelity.py
+│   └── test_pipeline_integration.py
+├── agents.py               # Gemini & Cross-Vendor prompt chains and fallbacks
+├── tools.py                # Tavily search wrapper, scraper, and multi-factor source scoring
+├── pipeline.py             # Local pipeline execution CLI & cost tracking
 ├── server.py               # Flask backend SSE streaming server
 ├── Dockerfile              # Docker container setup
-├── requirements.txt        # Python backend dependencies
-└── .env                    # Environment keys (Google & Tavily API keys)
+├── requirements.txt        # Python backend dependencies (includes pytest)
+└── .env                    # Environment keys
+```
+
+---
+
+## Testing
+
+Run the unit and integration test suite via `pytest`:
+
+```bash
+pytest tests/
 ```
 
 ---
@@ -99,11 +114,12 @@ Multi-Agent-System/
    ```
    Add your keys:
    ```env
-    GOOGLE_API_KEY=your_google_gemini_key
-    TAVILY_API_KEY=your_tavily_search_key
-    MONGODB_URI=mongodb://localhost:27017/arcs  # Optional: defaults to local MongoDB
-    JWT_SECRET=your_jwt_secret_key             # Optional: defaults to secure default
-    ```
+   GOOGLE_API_KEY=your_google_gemini_key
+   TAVILY_API_KEY=your_tavily_search_key
+   GROQ_API_KEY=gsk_your_groq_key             # Optional: Cross-vendor failover
+   MONGODB_URI=mongodb://localhost:27017/arcs  # Optional: defaults to local MongoDB
+   JWT_SECRET=your_jwt_secret_key             # Optional: defaults to secure default
+   ```
 
 3. **Run Backend Server**:
    ```bash
@@ -130,32 +146,12 @@ Multi-Agent-System/
    npm run dev
    ```
 
-3. **Production Build**:
-   ```bash
-   npm run build
-   ```
-
----
-
-## Deployment Configuration
-
-- **Frontend Deployment**: Configured for **Vercel** (serving the React frontend web app).
-- **Backend Deployment**: Configured for **Render** (hosting the Docker container for the Flask API server).
-
----
-
-## Technology Stack
-
-- **Model Stack**: Google Gemini 2.5 Flash (with automatic failover to 2.0 Flash & Gemini Flash Lite).
-- **Orchestration**: LangChain, Python Concurrent Futures.
-- **Search & Scraping**: Tavily Client, BeautifulSoup4, Requests.
-- **Frontend Framework**: React 18, Vite, Framer Motion, Lucide Icons, React Markdown.
-
 ---
 
 ## License
 
-Proprietary — All Rights Reserved.  
+All Rights Reserved — For Demonstration and Portfolio Purposes.  
 Copyright © 2026 Siva.
 
-This software and all associated documentation files are the private, proprietary property of Siva. Unauthorized copying, distribution, modification, or usage of this codebase is strictly prohibited.
+This software and associated documentation files are provided for demonstration purposes. Contact the repository owner for permissions or reuse.
+
