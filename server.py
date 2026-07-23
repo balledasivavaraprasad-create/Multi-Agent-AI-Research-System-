@@ -18,7 +18,7 @@ from agents import (
     planner_prompt, multi_reader_prompt, contrarian_prompt,
     writer_prompt, critic_prompt, revision_prompt,
     claim_extractor_prompt, claim_fidelity_prompt, fact_verifier_prompt, grounding_prompt,
-    STAGES, llm
+    STAGES, llm, invoke_llm_chain_with_fallback
 )
 from tools import web_search, scrape_url, get_source_trust_score
 
@@ -50,18 +50,9 @@ def extract_string(content):
 def get_model_cost(input_tokens, output_tokens):
     return (input_tokens * 0.075 / 1000000) + (output_tokens * 0.30 / 1000000)
 
-def track_call(response, metrics):
-    if hasattr(response, 'usage_metadata') and response.usage_metadata:
-        in_t = response.usage_metadata.get('input_tokens', 0)
-        out_t = response.usage_metadata.get('output_tokens', 0)
-        metrics['input_tokens'] += in_t
-        metrics['output_tokens'] += out_t
-
 def invoke_llm_chain(prompt_template, inputs, metrics):
-    prompt_val = prompt_template.invoke(inputs)
-    response = llm.invoke(prompt_val)
-    track_call(response, metrics)
-    return extract_string(response.content)
+    return invoke_llm_chain_with_fallback(prompt_template, inputs, metrics)
+
 
 def smart_sleep(duration):
     elapsed = 0.0

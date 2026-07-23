@@ -38,8 +38,7 @@ from tools import web_search, scrape_url
 
 load_dotenv()
 
-def create_resilient_llm():
-    # Gather all configured Google Gemini API Keys for key-rotation failover
+def get_llm_models_pool():
     google_keys = []
     for k in ["GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "GOOGLE_API_KEY_4"]:
         val = os.getenv(k)
@@ -57,9 +56,7 @@ def create_resilient_llm():
         "gemini-1.5-flash-8b",
     ]
     
-    chain_models = []
-    
-    # Build Google Gemini Model Chain across all keys and model variants
+    pool = []
     for g_key in google_keys:
         for m_name in models_to_try:
             try:
@@ -67,28 +64,45 @@ def create_resilient_llm():
                     model=m_name,
                     google_api_key=g_key,
                     temperature=0,
-                    max_retries=1,
-                    timeout=45,
+                    max_retries=0,
+                    timeout=30,
                 )
-                chain_models.append(m)
+                pool.append(m)
             except Exception:
                 pass
+                
+    return pool
 
-    if not chain_models:
-        return ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=google_keys[0],
-            temperature=0,
-            max_retries=2,
-            timeout=60,
-        )
+llm_pool = get_llm_models_pool()
+llm = llm_pool[0] if llm_pool else ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY", "placeholder_key"))
 
-    primary = chain_models[0]
-    if len(chain_models) > 1:
-        return primary.with_fallbacks(chain_models[1:])
-    return primary
+def invoke_llm_chain_with_fallback(prompt_template, inputs, metrics=None):
+    prompt_val = prompt_template.invoke(inputs)
+    pool = get_llm_models_pool()
+    
+    last_error = None
+    for model_inst in pool:
+        try:
+            response = model_inst.invoke(prompt_val)
+            if hasattr(response, 'usage_metadata') and response.usage_metadata and metrics is not None:
+                in_t = response.usage_metadata.get('input_tokens', 0)
+                out_t = response.usage_metadata.get('output_tokens', 0)
+                metrics['input_tokens'] += in_t
+                metrics['output_tokens'] += out_t
+            content = response.content
+            if isinstance(content, list):
+                parts = [p['text'] if isinstance(p, dict) and 'text' in p else str(p) for p in content]
+                return "".join(parts)
+            return str(content)
+        except Exception as e:
+            err_str = str(e)
+            model_name = getattr(model_inst, 'model', 'gemini')
+            print(f"⚠️ Model [{model_name}] hit rate limit or API error: {err_str[:120]}. Falling back to next model...")
+            last_error = e
+            time.sleep(1.0)
+            
+    raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(last_error)}")
 
-llm = create_resilient_llm()
 
 
 
