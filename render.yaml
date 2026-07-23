@@ -12,13 +12,12 @@ services:
         sync: true
       - key: GOOGLE_API_KEY_2
         sync: true
+      - key: GOOGLE_API_KEY_3
+        sync: true
       - key: TAVILY_API_KEY
-        sync: true
-      - key: GROQ_API_KEY
-        sync: true
-      - key: GROQ_API_KEY_2
         sync: true
       - key: MONGODB_URI
         sync: true
+
 
 

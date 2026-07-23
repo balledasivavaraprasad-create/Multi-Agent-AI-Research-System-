@@ -20,12 +20,11 @@ Calculates a multi-factor transparent trust score (0–10) with detailed breakdo
 - **Cross-Corroboration (20%)**: Boosts confidence when independent domains report matching factual claims.
 - **Primary Citation Check (20%)**: Outbound reference heuristics evaluating links to `.gov`, `.edu`, `arxiv.org`, or `doi.org`.
 
-### 4. High-Capacity Multi-Model & Key-Rotation Failover
-To reliably serve 50–100+ research runs per day without hitting API quota exhaustion or rate limit (429) bottlenecks, `agents.py` dynamically builds a multi-tier fallback chain spanning 12+ model targets across Google Gemini, Groq, and OpenRouter with automatic API key rotation:
-- **Google Gemini Tiers**: `gemini-2.5-flash` → `gemini-2.0-flash` → `gemini-2.0-flash-lite` → `gemini-1.5-flash` → `gemini-1.5-flash-8b`.
-- **API Key Rotation**: Automatically rotates across auxiliary environment keys (`GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, `GOOGLE_API_KEY_3`) when quotas are reached.
-- **Groq High-RPM Tiers**: `llama-3.3-70b-versatile` → `llama-3.1-8b-instant` → `mixtral-8x7b-32768` → `gemma2-9b-it` (rotates across `GROQ_API_KEY`, `GROQ_API_KEY_2`).
-- **OpenRouter Free/Open Tiers**: `llama-3.3-70b-instruct` → `deepseek-r1-distill-llama-70b` → `gemma-2-9b-it` → `mistral-7b-instruct`.
+### 4. Google Gemini Multi-Model & Key-Rotation Failover
+To reliably support 50–100+ research runs per day without hitting daily token limits (RPD) or rate limits (RPM), `agents.py` dynamically builds a multi-tier fallback chain across 5 Google Gemini model variants and rotates across multiple Google API keys (`GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, `GOOGLE_API_KEY_3`, `GOOGLE_API_KEY_4`):
+- **Model Fallback Tiers**: `gemini-2.5-flash` → `gemini-2.0-flash` → `gemini-2.0-flash-lite` → `gemini-1.5-flash` → `gemini-1.5-flash-8b`.
+- **Automatic Key Rotation**: Switches to auxiliary API keys seamlessly if a primary key encounters rate limits or quota boundaries.
+
 
 
 ### 5. Citation Grounding

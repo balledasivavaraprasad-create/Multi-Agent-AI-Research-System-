@@ -59,7 +59,7 @@ def create_resilient_llm():
     
     chain_models = []
     
-    # 1. Build Google Gemini Model Chain across all keys and model variants
+    # Build Google Gemini Model Chain across all keys and model variants
     for g_key in google_keys:
         for m_name in models_to_try:
             try:
@@ -73,63 +73,7 @@ def create_resilient_llm():
                 chain_models.append(m)
             except Exception:
                 pass
-                
-    # 2. Add Groq Models & Key Rotation
-    groq_keys = []
-    for k in ["GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3"]:
-        val = os.getenv(k)
-        if val and val.strip():
-            groq_keys.append(val.strip())
-            
-    groq_models = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "mixtral-8x7b-32768",
-        "gemma2-9b-it"
-    ]
-    
-    if groq_keys:
-        try:
-            from langchain_groq import ChatGroq
-            for gr_key in groq_keys:
-                for gr_model in groq_models:
-                    try:
-                        chain_models.append(
-                            ChatGroq(model_name=gr_model, groq_api_key=gr_key, temperature=0, max_retries=1)
-                        )
-                    except Exception:
-                        pass
-        except ImportError:
-            pass
 
-    # 3. Add OpenRouter Models
-    openrouter_keys = []
-    for k in ["OPENROUTER_API_KEY", "OPENROUTER_API_KEY_2"]:
-        val = os.getenv(k)
-        if val and val.strip():
-            openrouter_keys.append(val.strip())
-            
-    openrouter_models = [
-        "meta-llama/llama-3.3-70b-instruct",
-        "deepseek/deepseek-r1-distill-llama-70b:free",
-        "google/gemma-2-9b-it:free",
-        "mistralai/mistral-7b-instruct:free"
-    ]
-    
-    if openrouter_keys:
-        try:
-            from langchain_community.chat_models import ChatOpenAI
-            for or_key in openrouter_keys:
-                for or_model in openrouter_models:
-                    try:
-                        chain_models.append(
-                            ChatOpenAI(base_url="https://openrouter.ai/api/v1", api_key=or_key, model=or_model, temperature=0)
-                        )
-                    except Exception:
-                        pass
-        except ImportError:
-            pass
-            
     if not chain_models:
         return ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
@@ -145,6 +89,7 @@ def create_resilient_llm():
     return primary
 
 llm = create_resilient_llm()
+
 
 
 def build_search_agent():
