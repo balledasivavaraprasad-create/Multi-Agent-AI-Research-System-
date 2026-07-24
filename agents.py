@@ -50,10 +50,14 @@ def get_llm_models_pool():
 
     models_to_try = [
         "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
+        "gemini-2.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-pro",
+        "gemini-pro-latest",
     ]
     
     pool = []
@@ -72,6 +76,7 @@ def get_llm_models_pool():
                 pass
                 
     return pool
+
 
 llm_pool = get_llm_models_pool()
 llm = llm_pool[0] if llm_pool else ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY", "placeholder_key"))
