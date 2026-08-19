@@ -145,6 +145,13 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
 
 invoke_llm_chain_with_fallback = execute_llm_chain_with_fallback
 
+class ResilientLLMChain:
+    def __init__(self, prompt_template):
+        self.prompt_template = prompt_template
+
+    def invoke(self, input_parameters, config=None, **kwargs):
+        return execute_llm_chain_with_fallback(self.prompt_template, input_parameters)
+
 def construct_search_agent():
     return create_agent(
         model=llm,
@@ -177,7 +184,7 @@ Structure the report as:
 Be detailed, factual, objective, and professional.""")
 ])
 writer_prompt = report_composition_prompt
-writer_chain = report_composition_prompt | llm | StrOutputParser()
+writer_chain = ResilientLLMChain(report_composition_prompt)
 
 evaluative_review_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a rigorous, constructive research critic and quality auditor."),
@@ -205,7 +212,7 @@ Overall Verdict:
 ...""")
 ])
 critic_prompt = evaluative_review_prompt
-critic_chain = evaluative_review_prompt | llm | StrOutputParser()
+critic_chain = ResilientLLMChain(evaluative_review_prompt)
 
 strategic_planner_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a research strategist. Generate 4 to 5 focused research questions that structure inquiry into the topic comprehensively."),
@@ -218,7 +225,7 @@ Generate focused research questions that will structure a comprehensive research
 [...]""")
 ])
 planner_prompt = strategic_planner_prompt
-planner_chain = strategic_planner_prompt | llm | StrOutputParser()
+planner_chain = ResilientLLMChain(strategic_planner_prompt)
 
 fact_auditor_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a rigorous fact-checker. Identify unsupported claims, verify statistics, check dates, and assess claim reliability."),
@@ -233,7 +240,7 @@ Provide:
 4. Overall reliability score (0-100%)""")
 ])
 fact_checker_prompt = fact_auditor_prompt
-fact_checker_chain = fact_auditor_prompt | llm | StrOutputParser()
+fact_checker_chain = ResilientLLMChain(fact_auditor_prompt)
 
 dialectical_analysis_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a contrarian researcher. Challenge assumptions, find contradictions, and present alternative viewpoints."),
@@ -248,7 +255,7 @@ Provide:
 4. Weaknesses in reasoning""")
 ])
 contrarian_prompt = dialectical_analysis_prompt
-contrarian_chain = dialectical_analysis_prompt | llm | StrOutputParser()
+contrarian_chain = ResilientLLMChain(dialectical_analysis_prompt)
 
 source_reference_formatter_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a citation expert. Format all sources properly and create a professional reference list."),
@@ -261,7 +268,7 @@ Format as:
 [2] ...""")
 ])
 citation_prompt = source_reference_formatter_prompt
-citation_chain = source_reference_formatter_prompt | llm | StrOutputParser()
+citation_chain = ResilientLLMChain(source_reference_formatter_prompt)
 
 cross_source_synthesis_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an expert multi-source analyst. Synthesize insights from multiple sources, identify consensus and conflicts."),
@@ -276,7 +283,7 @@ Provide:
 4. Consensus level (0-100%)""")
 ])
 multi_reader_prompt = cross_source_synthesis_prompt
-multi_reader_chain = cross_source_synthesis_prompt | llm | StrOutputParser()
+multi_reader_chain = ResilientLLMChain(cross_source_synthesis_prompt)
 
 analytical_confidence_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a research quality assessor. Calculate confidence based on multiple factors."),
@@ -294,7 +301,7 @@ Factors:
 Formula: (sources*0.25 + quality*0.25 + facts*0.20 + agreement*0.15 + freshness*0.10) / 10""")
 ])
 confidence_prompt = analytical_confidence_prompt
-confidence_chain = analytical_confidence_prompt | llm | StrOutputParser()
+confidence_chain = ResilientLLMChain(analytical_confidence_prompt)
 
 manuscript_refinement_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a report revision specialist. Improve the report based on critical feedback to achieve quality standards."),
@@ -310,35 +317,35 @@ Target Score: 8.0+
 Revise the report to address the feedback while maintaining factual integrity.""")
 ])
 revision_prompt = manuscript_refinement_prompt
-revision_chain = manuscript_refinement_prompt | llm | StrOutputParser()
+revision_chain = ResilientLLMChain(manuscript_refinement_prompt)
 
 factual_claim_extractor_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an elite research analyst. Extract exactly 3 key factual claims from the provided report that require independent verification. Respond in a clean, numbered list of claims, with absolutely no introduction or explanation."),
     ("human", "{report}")
 ])
 claim_extractor_prompt = factual_claim_extractor_prompt
-claim_extractor_chain = factual_claim_extractor_prompt | llm | StrOutputParser()
+claim_extractor_chain = ResilientLLMChain(factual_claim_extractor_prompt)
 
 claim_neutrality_auditor_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a claim fidelity auditor. Evaluate whether the extracted claims accurately and neutrally represent the underlying source text without distortion, exaggeration, or strawman framing.\nFor each claim, state if it is faithful (Yes/No) and provide a refined neutral version if needed."),
     ("human", "Claims to Audit:\n{claims}\n\nSource Research Text:\n{source_text}")
 ])
 claim_fidelity_prompt = claim_neutrality_auditor_prompt
-claim_fidelity_chain = claim_neutrality_auditor_prompt | llm | StrOutputParser()
+claim_fidelity_chain = ResilientLLMChain(claim_neutrality_auditor_prompt)
 
 empirical_verification_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an unbiased fact-checker. Verify the claim below against the provided search evidence.\nClaim: {claim}\n\nEvidence:\n{evidence}\n\nEvaluate the claim based on the evidence. Respond in a clean JSON format (with no markdown code block formatting) containing exactly these three fields:\n- status: 'Verified' | 'Not Verified' | 'Partially Verified'\n- confidence: a number from 0 to 100\n- snippet: a short, specific supporting text snippet from the evidence"),
     ("human", "Verify this claim.")
 ])
 fact_verifier_prompt = empirical_verification_prompt
-fact_verifier_chain = empirical_verification_prompt | llm | StrOutputParser()
+fact_verifier_chain = ResilientLLMChain(empirical_verification_prompt)
 
 citation_grounding_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a professional research editor. Ground the provided research report with inline citations using numbers like [1], [2], etc., corresponding to the verified evidence.\n\nReport:\n{report}\n\nVerified Evidence:\n{verification_results}\n\nRewrite the report to integrate the inline citations naturally. At the very end of the report, add a 'Citations & Sources' section listing each numbered citation, the source URL, and the exact supporting evidence snippet in the format:\n[1] Source Name (URL)\nEvidence: \"exact snippet\""),
     ("human", "Ground this report.")
 ])
 grounding_prompt = citation_grounding_prompt
-grounding_chain = citation_grounding_prompt | llm | StrOutputParser()
+grounding_chain = ResilientLLMChain(citation_grounding_prompt)
 
 STAGES = [
     {
