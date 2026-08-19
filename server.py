@@ -1,12 +1,11 @@
-from fastapi import FastAPI, Request, HTTPException, Depends, Header, status
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import os
 import json
 import time
 import re
-import traceback
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
@@ -20,9 +19,9 @@ from agents import (
     strategic_planner_prompt, cross_source_synthesis_prompt, dialectical_analysis_prompt,
     report_composition_prompt, evaluative_review_prompt, manuscript_refinement_prompt,
     factual_claim_extractor_prompt, claim_neutrality_auditor_prompt, empirical_verification_prompt, citation_grounding_prompt,
-    STAGES, llm, execute_llm_chain_with_fallback
+    STAGES, execute_llm_chain_with_fallback
 )
-from tools import web_search, scrape_url, get_source_trust_score
+from tools import web_search, get_source_trust_score
 
 app = FastAPI(title="ARCS Research API", version="2.0.0")
 
