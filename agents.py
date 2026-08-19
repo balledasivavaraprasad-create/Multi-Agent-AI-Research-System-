@@ -33,7 +33,6 @@ from tools import web_search, scrape_url
 load_dotenv()
 
 _CACHED_MODEL_POOL = None
-_EXHAUSTED_MODEL_IDS = set()
 
 def initialize_generative_model_pool():
     global _CACHED_MODEL_POOL
@@ -52,20 +51,18 @@ def initialize_generative_model_pool():
     candidate_model_identifiers = [
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
     ]
     
     active_model_pool = []
-    for model_id in candidate_model_identifiers:
-        for api_key in api_credential_keys:
+    for api_key in api_credential_keys:
+        for model_id in candidate_model_identifiers:
             try:
                 model_inst = ChatGoogleGenerativeAI(
                     model=model_id,
                     google_api_key=api_key,
                     temperature=0.1,
-                    max_retries=0,
-                    timeout=20,
+                    max_retries=1,
+                    timeout=25,
                 )
                 active_model_pool.append(model_inst)
             except Exception:
@@ -86,10 +83,6 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
     last_encountered_error = None
     for outer_pass in range(2):
         for target_model in available_models:
-            model_name_tag = getattr(target_model, 'model', 'unknown')
-            if model_name_tag in _EXHAUSTED_MODEL_IDS:
-                continue
-                
             for attempt in range(2):
                 try:
                     model_response = target_model.invoke(formatted_prompt)
@@ -110,17 +103,10 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
                     last_encountered_error = exc
                     err_message = str(exc)
                     
-                    if "404" in err_message or "NOT_FOUND" in err_message or "no longer available" in err_message:
-                        _EXHAUSTED_MODEL_IDS.add(model_name_tag)
-                        break
-                    
                     retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
                     if retry_match:
                         delay_secs = float(retry_match.group(1))
-                        if delay_secs > 10.0:
-                            _EXHAUSTED_MODEL_IDS.add(model_name_tag)
-                            break
-                        elif attempt == 0:
+                        if delay_secs <= 10.0 and attempt == 0:
                             time.sleep(min(3.0, delay_secs + 0.25))
                             continue
                     elif ("429" in err_message or "RESOURCE_EXHAUSTED" in err_message or "503" in err_message) and attempt == 0:
