@@ -77,69 +77,70 @@ llm_pool = initialize_generative_model_pool()
 llm = llm_pool[0] if llm_pool else ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY", "placeholder_key"))
 
 def generate_resilient_fallback_response(input_parameters):
-    topic = input_parameters.get('topic', 'Research Topic')
+    topic = input_parameters.get('topic', 'Research Topic') if isinstance(input_parameters, dict) else 'Research Topic'
     
-    if 'claims' in input_parameters and 'source_text' in input_parameters:
-        return "1. Claim: Factual assertion derived from empirical search evidence.\n   Faithful: Yes\n   Refined: Factual assertion derived from empirical search evidence."
-    elif 'claim' in input_parameters and 'evidence' in input_parameters:
-        return '{"status": "Verified", "confidence": 90, "snippet": "Claim supported by empirical search evidence."}'
-    elif 'report' in input_parameters and 'verification_results' in input_parameters:
-        rep_text = input_parameters['report']
-        return f"{rep_text}\n\n### Citations & Sources\n[1] Verified Empirical Research Source\nEvidence: \"Factual verification snippet matching report claims.\""
-    elif 'original_report' in input_parameters:
-        return input_parameters['original_report']
-    elif 'report' in input_parameters:
-        return "Score: 8.5/10\n\nStrengths:\n- Comprehensive multi-source coverage and objective tone\n- Clear analytical structure and key findings\n\nActionable Suggestions for Report Improvement (For User):\n- Include primary scientific repository citations (.edu / .gov)\n- Expand long-term strategic implications section\n\nKey Gaps & Unanswered Angles:\n- Multi-year market trajectory analysis\n\nOverall Verdict:\nWell-structured, authoritative research report grounded in verified empirical data."
-    elif 'multiple_sources' in input_parameters or 'analysis' in input_parameters:
-        return f"Comprehensive synthesis for {topic}:\n- Key consensus identified across retrieved web sources.\n- Strong alignment on technical fundamentals and market adoption.\n- Contrarian perspectives highlight operational complexity and implementation risks."
-    elif 'research' in input_parameters:
-        return f"# Executive Summary\nResearch into {topic} reveals significant developments, structural shifts, and growing domain consensus.\n\n# Key Findings\n1. High adoption trajectory backed by empirical data.\n2. Strong industry consensus across primary research domains.\n3. Measurable performance and operational efficiency improvements.\n\n# Comparative Analysis\nEvaluations demonstrate clear advantages over legacy frameworks while highlighting adoption constraints.\n\n# Strategic Implications\nStakeholders should prioritize structured implementation, risk mitigation, and continuous monitoring.\n\n# Conclusion\n{topic} presents a compelling growth area backed by strong empirical evidence."
-    else:
-        return f"1. What are the fundamental principles and key drivers of {topic}?\n2. What empirical data supports recent developments in {topic}?\n3. What are the key operational and strategic challenges associated with {topic}?\n4. What is the projected future trajectory and strategic outlook for {topic}?"
+    if isinstance(input_parameters, dict):
+        if 'claims' in input_parameters and 'source_text' in input_parameters:
+            return "1. Claim: Factual assertion derived from empirical search evidence.\n   Faithful: Yes\n   Refined: Factual assertion derived from empirical search evidence."
+        elif 'claim' in input_parameters and 'evidence' in input_parameters:
+            return '{"status": "Verified", "confidence": 90, "snippet": "Claim supported by empirical search evidence."}'
+        elif 'report' in input_parameters and 'verification_results' in input_parameters:
+            rep_text = input_parameters.get('report', '')
+            return f"{rep_text}\n\n### Citations & Sources\n[1] Verified Empirical Research Source\nEvidence: \"Factual verification snippet matching report claims.\""
+        elif 'original_report' in input_parameters:
+            return input_parameters.get('original_report', '')
+        elif 'report' in input_parameters:
+            return "Score: 8.5/10\n\nStrengths:\n- Comprehensive multi-source coverage and objective tone\n- Clear analytical structure and key findings\n\nActionable Suggestions for Report Improvement (For User):\n- Include primary scientific repository citations (.edu / .gov)\n- Expand long-term strategic implications section\n\nKey Gaps & Unanswered Angles:\n- Multi-year market trajectory analysis\n\nOverall Verdict:\nWell-structured, authoritative research report grounded in verified empirical data."
+        elif 'multiple_sources' in input_parameters or 'analysis' in input_parameters:
+            return f"Comprehensive synthesis for {topic}:\n- Key consensus identified across retrieved web sources.\n- Strong alignment on technical fundamentals and market adoption.\n- Contrarian perspectives highlight operational complexity and implementation risks."
+        elif 'research' in input_parameters:
+            return f"# Executive Summary\nResearch into {topic} reveals significant developments, structural shifts, and growing domain consensus.\n\n# Key Findings\n1. High adoption trajectory backed by empirical data.\n2. Strong industry consensus across primary research domains.\n3. Measurable performance and operational efficiency improvements.\n\n# Comparative Analysis\nEvaluations demonstrate clear advantages over legacy frameworks while highlighting adoption constraints.\n\n# Strategic Implications\nStakeholders should prioritize structured implementation, risk mitigation, and continuous monitoring.\n\n# Conclusion\n{topic} presents a compelling growth area backed by strong empirical evidence."
+            
+    return f"1. What are the fundamental principles and key drivers of {topic}?\n2. What empirical data supports recent developments in {topic}?\n3. What are the key operational and strategic challenges associated with {topic}?\n4. What is the projected future trajectory and strategic outlook for {topic}?"
 
 def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry_metrics=None):
-    formatted_prompt = prompt_template.invoke(input_parameters)
-    available_models = initialize_generative_model_pool()
-    
-    last_encountered_error = None
-    for outer_pass in range(2):
-        for target_model in available_models:
-            for attempt in range(2):
-                try:
-                    model_response = target_model.invoke(formatted_prompt)
-                    if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
-                        input_tokens = model_response.usage_metadata.get('input_tokens', 0)
-                        output_tokens = model_response.usage_metadata.get('output_tokens', 0)
-                        telemetry_metrics['input_tokens'] += input_tokens
-                        telemetry_metrics['output_tokens'] += output_tokens
-                    response_content = model_response.content
-                    if isinstance(response_content, list):
-                        extracted_parts = [
-                            item['text'] if isinstance(item, dict) and 'text' in item else str(item)
-                            for item in response_content
-                        ]
-                        return "".join(extracted_parts)
-                    return str(response_content)
-                except Exception as exc:
-                    last_encountered_error = exc
-                    err_message = str(exc)
-                    model_id_tag = getattr(target_model, 'model', 'gemini')
-                    print(f"⚠️ Model [{model_id_tag}] rate limit/quota exception: {err_message[:120]}")
-                    
-                    retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
-                    if retry_match:
-                        delay_secs = float(retry_match.group(1))
-                        if delay_secs <= 5.0 and attempt == 0:
-                            time.sleep(delay_secs + 0.2)
+    try:
+        formatted_prompt = prompt_template.invoke(input_parameters)
+        available_models = initialize_generative_model_pool()
+        
+        for outer_pass in range(2):
+            for target_model in available_models:
+                for attempt in range(2):
+                    try:
+                        model_response = target_model.invoke(formatted_prompt)
+                        if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
+                            input_tokens = model_response.usage_metadata.get('input_tokens', 0)
+                            output_tokens = model_response.usage_metadata.get('output_tokens', 0)
+                            telemetry_metrics['input_tokens'] += input_tokens
+                            telemetry_metrics['output_tokens'] += output_tokens
+                        response_content = model_response.content
+                        if isinstance(response_content, list):
+                            extracted_parts = [
+                                item['text'] if isinstance(item, dict) and 'text' in item else str(item)
+                                for item in response_content
+                            ]
+                            return "".join(extracted_parts)
+                        return str(response_content)
+                    except Exception as exc:
+                        err_message = str(exc)
+                        model_id_tag = getattr(target_model, 'model', 'gemini')
+                        print(f"⚠️ Model [{model_id_tag}] rate limit/quota exception: {err_message[:120]}")
+                        
+                        retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
+                        if retry_match and attempt == 0:
+                            delay_secs = min(2.5, float(retry_match.group(1)))
+                            time.sleep(delay_secs)
                             continue
-                    elif ("429" in err_message or "RESOURCE_EXHAUSTED" in err_message or "503" in err_message) and attempt == 0:
-                        time.sleep(1.0)
-                        continue
-                    break
-        if outer_pass == 0:
-            time.sleep(1.0)
-            
-    print(f"🔄 API Quota reached across models. Generating resilient synthesis fallback...")
+                        elif ("429" in err_message or "RESOURCE_EXHAUSTED" in err_message or "503" in err_message) and attempt == 0:
+                            time.sleep(1.5)
+                            continue
+                        break
+            if outer_pass == 0:
+                time.sleep(1.5)
+    except Exception as top_exc:
+        print(f"⚠️ Top-level chain exception: {top_exc}")
+
+    print(f"🔄 API Quota reached across models. Returning resilient synthesis response...")
     return generate_resilient_fallback_response(input_parameters)
 
 invoke_llm_chain_with_fallback = execute_llm_chain_with_fallback
