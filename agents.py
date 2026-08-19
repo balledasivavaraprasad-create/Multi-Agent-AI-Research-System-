@@ -52,9 +52,8 @@ def initialize_generative_model_pool():
     candidate_model_identifiers = [
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-3.6-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
     ]
     
     active_model_pool = []
@@ -66,7 +65,7 @@ def initialize_generative_model_pool():
                     google_api_key=api_key,
                     temperature=0.1,
                     max_retries=0,
-                    timeout=20,
+                    timeout=25,
                 )
                 active_model_pool.append(model_inst)
             except Exception:
@@ -85,44 +84,47 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
     available_models = initialize_generative_model_pool()
     
     last_encountered_error = None
-    for target_model in available_models:
-        model_name_tag = getattr(target_model, 'model', 'unknown')
-        if model_name_tag in _EXHAUSTED_MODEL_IDS:
-            continue
-            
-        for attempt in range(2):
-            try:
-                model_response = target_model.invoke(formatted_prompt)
-                if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
-                    input_tokens = model_response.usage_metadata.get('input_tokens', 0)
-                    output_tokens = model_response.usage_metadata.get('output_tokens', 0)
-                    telemetry_metrics['input_tokens'] += input_tokens
-                    telemetry_metrics['output_tokens'] += output_tokens
-                response_content = model_response.content
-                if isinstance(response_content, list):
-                    extracted_parts = [
-                        item['text'] if isinstance(item, dict) and 'text' in item else str(item)
-                        for item in response_content
-                    ]
-                    return "".join(extracted_parts)
-                return str(response_content)
-            except Exception as exc:
-                last_encountered_error = exc
-                err_message = str(exc)
+    for outer_pass in range(2):
+        for target_model in available_models:
+            model_name_tag = getattr(target_model, 'model', 'unknown')
+            if model_name_tag in _EXHAUSTED_MODEL_IDS:
+                continue
                 
-                retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
-                if retry_match:
-                    delay_secs = float(retry_match.group(1))
-                    if delay_secs > 4.0:
-                        _EXHAUSTED_MODEL_IDS.add(model_name_tag)
-                        break
-                    elif attempt == 0:
-                        time.sleep(min(3.0, delay_secs + 0.2))
+            for attempt in range(2):
+                try:
+                    model_response = target_model.invoke(formatted_prompt)
+                    if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
+                        input_tokens = model_response.usage_metadata.get('input_tokens', 0)
+                        output_tokens = model_response.usage_metadata.get('output_tokens', 0)
+                        telemetry_metrics['input_tokens'] += input_tokens
+                        telemetry_metrics['output_tokens'] += output_tokens
+                    response_content = model_response.content
+                    if isinstance(response_content, list):
+                        extracted_parts = [
+                            item['text'] if isinstance(item, dict) and 'text' in item else str(item)
+                            for item in response_content
+                        ]
+                        return "".join(extracted_parts)
+                    return str(response_content)
+                except Exception as exc:
+                    last_encountered_error = exc
+                    err_message = str(exc)
+                    
+                    retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
+                    if retry_match:
+                        delay_secs = float(retry_match.group(1))
+                        if delay_secs > 10.0:
+                            _EXHAUSTED_MODEL_IDS.add(model_name_tag)
+                            break
+                        elif attempt == 0:
+                            time.sleep(min(3.0, delay_secs + 0.25))
+                            continue
+                    elif ("429" in err_message or "RESOURCE_EXHAUSTED" in err_message or "503" in err_message) and attempt == 0:
+                        time.sleep(1.2)
                         continue
-                elif ("429" in err_message or "RESOURCE_EXHAUSTED" in err_message) and attempt == 0:
-                    time.sleep(1.0)
-                    continue
-                break
+                    break
+        if outer_pass == 0:
+            time.sleep(1.5)
             
     raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(last_encountered_error)}")
 
