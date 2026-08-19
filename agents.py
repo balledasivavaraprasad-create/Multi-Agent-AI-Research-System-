@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import re
 from dotenv import load_dotenv
 
 try:
@@ -52,11 +53,13 @@ def initialize_generative_model_pool():
         "gemini-2.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-pro",
     ]
     
     active_model_pool = []
-    for api_key in api_credential_keys:
-        for model_id in candidate_model_identifiers:
+    for model_id in candidate_model_identifiers:
+        for api_key in api_credential_keys:
             try:
                 model_inst = ChatGoogleGenerativeAI(
                     model=model_id,
@@ -83,24 +86,35 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
     
     last_encountered_error = None
     for target_model in available_models:
-        try:
-            model_response = target_model.invoke(formatted_prompt)
-            if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
-                input_tokens = model_response.usage_metadata.get('input_tokens', 0)
-                output_tokens = model_response.usage_metadata.get('output_tokens', 0)
-                telemetry_metrics['input_tokens'] += input_tokens
-                telemetry_metrics['output_tokens'] += output_tokens
-            response_content = model_response.content
-            if isinstance(response_content, list):
-                extracted_parts = [
-                    item['text'] if isinstance(item, dict) and 'text' in item else str(item)
-                    for item in response_content
-                ]
-                return "".join(extracted_parts)
-            return str(response_content)
-        except Exception as exc:
-            last_encountered_error = exc
-            time.sleep(0.1)
+        for attempt in range(2):
+            try:
+                model_response = target_model.invoke(formatted_prompt)
+                if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
+                    input_tokens = model_response.usage_metadata.get('input_tokens', 0)
+                    output_tokens = model_response.usage_metadata.get('output_tokens', 0)
+                    telemetry_metrics['input_tokens'] += input_tokens
+                    telemetry_metrics['output_tokens'] += output_tokens
+                response_content = model_response.content
+                if isinstance(response_content, list):
+                    extracted_parts = [
+                        item['text'] if isinstance(item, dict) and 'text' in item else str(item)
+                        for item in response_content
+                    ]
+                    return "".join(extracted_parts)
+                return str(response_content)
+            except Exception as exc:
+                last_encountered_error = exc
+                err_message = str(exc)
+                
+                retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
+                if retry_match and attempt == 0:
+                    wait_seconds = min(3.0, float(retry_match.group(1)) + 0.25)
+                    time.sleep(wait_seconds)
+                    continue
+                elif ("429" in err_message or "RESOURCE_EXHAUSTED" in err_message or "503" in err_message or "UNAVAILABLE" in err_message) and attempt == 0:
+                    time.sleep(1.5)
+                    continue
+                break
             
     raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(last_encountered_error)}")
 
