@@ -22,7 +22,7 @@ Calculates a multi-factor transparent trust score (0–10) with detailed breakdo
 
 ### 4. Google Gemini Multi-Model & Key-Rotation Failover
 To reliably support high-throughput research runs per day without hitting token limits (RPD) or rate limits (RPM), `agents.py` dynamically builds a multi-tier fallback chain across Google Gemini model variants and rotates across multiple Google API keys (`GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, `GOOGLE_API_KEY_3`, `GOOGLE_API_KEY_4`):
-- **Model Fallback Tiers**: `gemini-3.6-flash` → `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-3.5-flash`.
+- **Model Fallback Tiers**: `gemini-3.6-flash` → `gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-3.5-flash` → `gemini-3.5-flash-lite` → `gemini-2.5-pro`.
 - **Automatic Key Rotation**: Switches to auxiliary API keys seamlessly if a primary key encounters rate limits or quota boundaries.
 
 ### 5. Citation Grounding
@@ -65,7 +65,7 @@ Multi-Agent-System/
 ├── agents.py               # Gemini prompt chains and fallbacks
 ├── tools.py                # Tavily search wrapper, scraper, and multi-factor source scoring
 ├── pipeline.py             # Local pipeline execution CLI
-├── server.py               # Flask backend SSE streaming server
+├── server.py               # FastAPI backend SSE streaming server (Uvicorn)
 ├── Dockerfile              # Docker container setup
 ├── requirements.txt        # Python backend dependencies (includes pytest)
 └── .env                    # Environment keys
@@ -85,7 +85,7 @@ pytest tests/
 
 ## Setup Instructions
 
-### Backend (Python Flask Server)
+### Backend (Python FastAPI Server)
 
 1. **Install Dependencies**:
    ```bash

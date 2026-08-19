@@ -28,9 +28,9 @@ faiss-cpu
 chromadb
 cloudpickle
 typing_extensions
-flask
-flask-cors
-gunicorn
+fastapi
+uvicorn
+sse-starlette
 pymongo
 bcrypt
 pyjwt
