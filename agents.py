@@ -65,7 +65,7 @@ def initialize_generative_model_pool():
                     google_api_key=api_key,
                     temperature=0.1,
                     max_retries=0,
-                    timeout=25,
+                    timeout=20,
                 )
                 active_model_pool.append(model_inst)
             except Exception:
@@ -109,6 +109,10 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
                 except Exception as exc:
                     last_encountered_error = exc
                     err_message = str(exc)
+                    
+                    if "404" in err_message or "NOT_FOUND" in err_message or "no longer available" in err_message:
+                        _EXHAUSTED_MODEL_IDS.add(model_name_tag)
+                        break
                     
                     retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
                     if retry_match:
