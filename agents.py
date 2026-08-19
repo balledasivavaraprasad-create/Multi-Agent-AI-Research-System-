@@ -46,6 +46,8 @@ def initialize_generative_model_pool():
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-pro",
     ]
     
     active_model_pool = []
@@ -56,8 +58,8 @@ def initialize_generative_model_pool():
                     model=model_id,
                     google_api_key=api_key,
                     temperature=0,
-                    max_retries=0,
-                    timeout=30,
+                    max_retries=2,
+                    timeout=45,
                 )
                 active_model_pool.append(model_inst)
             except Exception:
@@ -74,34 +76,41 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
     formatted_prompt = prompt_template.invoke(input_parameters)
     available_models = initialize_generative_model_pool()
     
-    encountered_error = None
-    for target_model in available_models:
-        try:
-            model_response = target_model.invoke(formatted_prompt)
-            if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
-                input_tokens = model_response.usage_metadata.get('input_tokens', 0)
-                output_tokens = model_response.usage_metadata.get('output_tokens', 0)
-                telemetry_metrics['input_tokens'] += input_tokens
-                telemetry_metrics['output_tokens'] += output_tokens
-            response_content = model_response.content
-            if isinstance(response_content, list):
-                extracted_parts = []
-                for item in response_content:
-                    if isinstance(item, dict) and 'text' in item:
-                        extracted_parts.append(item['text'])
-                    elif isinstance(item, str):
-                        extracted_parts.append(item)
-                    else:
-                        extracted_parts.append(str(item))
-                return "".join(extracted_parts)
-            return str(response_content)
-        except Exception as exc:
+    last_encountered_error = None
+    for outer_pass in range(2):
+        for target_model in available_models:
             model_identifier = getattr(target_model, 'model', 'gemini')
-            print(f"⚠️ Model [{model_identifier}] rate limit/API exception: {str(exc)[:120]}. Falling back...")
-            encountered_error = exc
-            time.sleep(0.2)
+            for attempt in range(3):
+                try:
+                    model_response = target_model.invoke(formatted_prompt)
+                    if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
+                        input_tokens = model_response.usage_metadata.get('input_tokens', 0)
+                        output_tokens = model_response.usage_metadata.get('output_tokens', 0)
+                        telemetry_metrics['input_tokens'] += input_tokens
+                        telemetry_metrics['output_tokens'] += output_tokens
+                    response_content = model_response.content
+                    if isinstance(response_content, list):
+                        extracted_parts = []
+                        for item in response_content:
+                            if isinstance(item, dict) and 'text' in item:
+                                extracted_parts.append(item['text'])
+                            elif isinstance(item, str):
+                                extracted_parts.append(item)
+                            else:
+                                extracted_parts.append(str(item))
+                        return "".join(extracted_parts)
+                    return str(response_content)
+                except Exception as exc:
+                    err_message = str(exc)
+                    last_encountered_error = exc
+                    if ("503" in err_message or "UNAVAILABLE" in err_message or "429" in err_message or "RESOURCE_EXHAUSTED" in err_message) and attempt < 2:
+                        time.sleep(1.2 * (attempt + 1))
+                        continue
+                    break
+        if outer_pass == 0:
+            time.sleep(1.5)
             
-    raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(encountered_error)}")
+    raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(last_encountered_error)}")
 
 invoke_llm_chain_with_fallback = execute_llm_chain_with_fallback
 
