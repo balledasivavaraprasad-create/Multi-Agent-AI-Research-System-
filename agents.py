@@ -42,11 +42,14 @@ def initialize_generative_model_pool():
     api_credential_keys = []
     for key_name in ["GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "GOOGLE_API_KEY_4"]:
         credential = os.getenv(key_name)
-        if credential and credential.strip() and credential.strip() != "placeholder_key":
-            api_credential_keys.append(credential.strip())
+        if credential and str(credential).strip() and str(credential).strip() != "placeholder_key":
+            clean_key = str(credential).strip().strip("'\"")
+            if clean_key not in api_credential_keys:
+                api_credential_keys.append(clean_key)
             
     if not api_credential_keys:
-        api_credential_keys = [os.getenv("GOOGLE_API_KEY", "placeholder_key")]
+        fallback_k = os.getenv("GOOGLE_API_KEY", "placeholder_key")
+        api_credential_keys = [str(fallback_k).strip().strip("'\"")]
 
     candidate_model_identifiers = [
         "gemini-2.5-flash",
@@ -62,12 +65,16 @@ def initialize_generative_model_pool():
                     google_api_key=api_key,
                     temperature=0.1,
                     max_retries=1,
-                    timeout=25,
+                    timeout=30,
                 )
                 active_model_pool.append(model_inst)
-            except Exception:
-                pass
+            except Exception as init_err:
+                print(f"⚠️ Warning initializing model [{model_id}]: {init_err}")
                 
+    if not active_model_pool:
+        primary_k = api_credential_keys[0] if api_credential_keys else "placeholder_key"
+        active_model_pool.append(ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=primary_k))
+
     _CACHED_MODEL_POOL = active_model_pool
     return _CACHED_MODEL_POOL
 
@@ -116,7 +123,8 @@ def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry
         if outer_pass == 0:
             time.sleep(1.5)
             
-    raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(last_encountered_error)}")
+    err_detail = str(last_encountered_error) if last_encountered_error is not None else "No models initialized in pool"
+    raise RuntimeError(f"All LLM models in fallback pool exhausted: {err_detail}")
 
 invoke_llm_chain_with_fallback = execute_llm_chain_with_fallback
 
