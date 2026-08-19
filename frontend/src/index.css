@@ -46,7 +46,6 @@ html, body {
   overflow-x: hidden;
 }
 
-
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -61,12 +60,10 @@ html, body {
   background: var(--border-focus);
 }
 
-
 ::selection {
   background: var(--accent-glow);
   color: var(--text-primary);
 }
-
 
 .glass-panel {
   background: rgba(13, 13, 11, 0.6);
@@ -74,7 +71,6 @@ html, body {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-base);
 }
-
 
 @keyframes pulseGlow {
   0%, 100% {
@@ -97,7 +93,6 @@ html, body {
 .animate-pulse-glow {
   animation: pulseGlow 3s ease-in-out infinite;
 }
-
 
 .prose {
   color: var(--text-secondary);

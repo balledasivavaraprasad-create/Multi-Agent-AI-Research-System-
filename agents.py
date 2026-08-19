@@ -1,22 +1,14 @@
-# Copyright (c) 2026 Siva. All rights reserved.
-# This software and associated documentation files are the proprietary property of Siva.
-# Unauthorized copying, distribution, or modification is strictly prohibited.
-
 import os
 import sys
 import time
 from dotenv import load_dotenv
 
-
 try:
     from langchain_core.prompts import ChatPromptTemplate
     from langchain_core.output_parsers import StrOutputParser
     from langchain_google_genai import ChatGoogleGenerativeAI
-except ImportError as e:
-    print(f"\n❌ Error importing dependencies: {str(e)}")
-    print("Please ensure you are running in the virtual environment.")
-    print("Run: source .venv/bin/activate (on macOS/Linux) or .venv\\Scripts\\activate (on Windows)")
-    print("Then install requirements: pip install -r requirements.txt\n")
+except ImportError as err:
+    print(f"\n❌ Error importing dependencies: {str(err)}")
     sys.exit(1)
 
 try:
@@ -25,155 +17,159 @@ except ImportError:
     try:
         from langgraph.prebuilt import create_react_agent as create_agent
     except ImportError:
-        def create_agent(model, tools, **kwargs):
+        def create_agent(model_instance, agent_tools, **kwargs):
             try:
                 from langgraph.prebuilt import create_react_agent
-                return create_react_agent(model, tools, **kwargs)
+                return create_react_agent(model_instance, agent_tools, **kwargs)
             except ImportError:
                 raise ImportError(
                     "Could not import either 'create_agent' from 'langchain.agents' "
-                    "or 'create_react_agent' from 'langgraph.prebuilt'. "
-                    "Please update your packages: pip install -U langchain langgraph"
+                    "or 'create_react_agent' from 'langgraph.prebuilt'."
                 )
 
 from tools import web_search, scrape_url
 
 load_dotenv()
 
-def get_llm_models_pool():
-    google_keys = []
-    for k in ["GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "GOOGLE_API_KEY_4"]:
-        val = os.getenv(k)
-        if val and val.strip() and val.strip() != "placeholder_key":
-            google_keys.append(val.strip())
+def initialize_generative_model_pool():
+    api_credential_keys = []
+    for key_name in ["GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "GOOGLE_API_KEY_4"]:
+        credential = os.getenv(key_name)
+        if credential and credential.strip() and credential.strip() != "placeholder_key":
+            api_credential_keys.append(credential.strip())
             
-    if not google_keys:
-        google_keys = [os.getenv("GOOGLE_API_KEY", "placeholder_key")]
+    if not api_credential_keys:
+        api_credential_keys = [os.getenv("GOOGLE_API_KEY", "placeholder_key")]
 
-    models_to_try = [
+    candidate_model_identifiers = [
+        "gemini-3.6-flash",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
-        "gemini-3.6-flash",
         "gemini-3.5-flash",
-        "gemini-flash-latest",
-        "gemini-flash-lite-latest",
-        "gemini-3.5-flash-lite",
-        "gemini-2.5-pro",
-        "gemini-pro-latest",
     ]
     
-    pool = []
-    for g_key in google_keys:
-        for m_name in models_to_try:
+    active_model_pool = []
+    for api_key in api_credential_keys:
+        for model_id in candidate_model_identifiers:
             try:
-                m = ChatGoogleGenerativeAI(
-                    model=m_name,
-                    google_api_key=g_key,
+                model_inst = ChatGoogleGenerativeAI(
+                    model=model_id,
+                    google_api_key=api_key,
                     temperature=0,
                     max_retries=0,
                     timeout=30,
                 )
-                pool.append(m)
+                active_model_pool.append(model_inst)
             except Exception:
                 pass
                 
-    return pool
+    return active_model_pool
 
+get_llm_models_pool = initialize_generative_model_pool
 
-llm_pool = get_llm_models_pool()
-llm = llm_pool[0] if llm_pool else ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY", "placeholder_key"))
+llm_pool = initialize_generative_model_pool()
+llm = llm_pool[0] if llm_pool else ChatGoogleGenerativeAI(model="gemini-3.6-flash", google_api_key=os.getenv("GOOGLE_API_KEY", "placeholder_key"))
 
-def invoke_llm_chain_with_fallback(prompt_template, inputs, metrics=None):
-    prompt_val = prompt_template.invoke(inputs)
-    pool = get_llm_models_pool()
+def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry_metrics=None):
+    formatted_prompt = prompt_template.invoke(input_parameters)
+    available_models = initialize_generative_model_pool()
     
-    last_error = None
-    for model_inst in pool:
+    encountered_error = None
+    for target_model in available_models:
         try:
-            response = model_inst.invoke(prompt_val)
-            if hasattr(response, 'usage_metadata') and response.usage_metadata and metrics is not None:
-                in_t = response.usage_metadata.get('input_tokens', 0)
-                out_t = response.usage_metadata.get('output_tokens', 0)
-                metrics['input_tokens'] += in_t
-                metrics['output_tokens'] += out_t
-            content = response.content
-            if isinstance(content, list):
-                parts = [p['text'] if isinstance(p, dict) and 'text' in p else str(p) for p in content]
-                return "".join(parts)
-            return str(content)
-        except Exception as e:
-            err_str = str(e)
-            model_name = getattr(model_inst, 'model', 'gemini')
-            print(f"⚠️ Model [{model_name}] hit rate limit or API error: {err_str[:120]}. Falling back to next model...")
-            last_error = e
-            time.sleep(1.0)
+            model_response = target_model.invoke(formatted_prompt)
+            if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
+                input_tokens = model_response.usage_metadata.get('input_tokens', 0)
+                output_tokens = model_response.usage_metadata.get('output_tokens', 0)
+                telemetry_metrics['input_tokens'] += input_tokens
+                telemetry_metrics['output_tokens'] += output_tokens
+            response_content = model_response.content
+            if isinstance(response_content, list):
+                extracted_parts = []
+                for item in response_content:
+                    if isinstance(item, dict) and 'text' in item:
+                        extracted_parts.append(item['text'])
+                    elif isinstance(item, str):
+                        extracted_parts.append(item)
+                    else:
+                        extracted_parts.append(str(item))
+                return "".join(extracted_parts)
+            return str(response_content)
+        except Exception as exc:
+            model_identifier = getattr(target_model, 'model', 'gemini')
+            print(f"⚠️ Model [{model_identifier}] rate limit/API exception: {str(exc)[:120]}. Falling back...")
+            encountered_error = exc
+            time.sleep(0.2)
             
-    raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(last_error)}")
+    raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(encountered_error)}")
 
+invoke_llm_chain_with_fallback = execute_llm_chain_with_fallback
 
-
-
-def build_search_agent():
+def construct_search_agent():
     return create_agent(
         model=llm,
         tools=[web_search]
     )
 
-def build_reader_agent():
+def construct_reader_agent():
     return create_agent(
         model=llm,
         tools=[scrape_url]
     )
 
-writer_prompt = ChatPromptTemplate.from_messages([
-    ("system","You are an expert research writer. You have the ability to write clear, structured and insightful reports"),
-    ("human", """Write a detailed research report on the topic below
-     Topic : {topic}
+report_composition_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an expert research writer capable of composing clear, highly structured, authoritative reports."),
+    ("human", """Write a detailed research report on the topic below.
 
-     Research Gathered :
-     {research}
+Topic: {topic}
 
-     Structure of the report as :
+Research Gathered:
+{research}
 
-     - Introduction
-     - Key Findings (minimum 3 well-explained points)
-     - Conclusion
-     - Sources (list all URLs found in the research)
-     
-     Be detailed, factual and professional.""")
+Structure the report as:
+- Executive Summary
+- Key Findings (minimum 3 well-explained points)
+- Comparative Analysis
+- Strategic Implications
+- Conclusion
+- Sources (list all URLs found in research)
+
+Be detailed, factual, objective, and professional.""")
 ])
+writer_prompt = report_composition_prompt
+writer_chain = report_composition_prompt | llm | StrOutputParser()
 
-writer_chain = writer_prompt | llm | StrOutputParser()
+evaluative_review_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a rigorous, constructive research critic and quality auditor."),
+    ("human", """Review the research report below and evaluate its rigor, structure, depth, and evidence quality.
 
-critic_prompt = ChatPromptTemplate.from_messages([
-    ("system","You are a sharp and constructive research critic. Be brutally honest and specific"),
-    ("human","""Review the research report below and evaluate it strictly.
-     
-     Report: {report}
+Report: {report}
 
-     Respond in this exact format :
+Respond in this exact format:
 
-     Score : X/10
+Score: X/10
 
-     Strengths:
-     - ...
-     - ...
-     - ...
+Strengths:
+- ...
+- ...
+- ...
 
-     Areas To Imporove :
-     - ...
-     - ...
-     - ...
+Actionable Suggestions for Report Improvement (For User):
+- ...
+- ...
+- ...
 
-     one line verdict :
+Key Gaps & Unanswered Angles:
+- ...
+- ...
 
-     ..."""),
+Overall Verdict:
+...""")
 ])
+critic_prompt = evaluative_review_prompt
+critic_chain = evaluative_review_prompt | llm | StrOutputParser()
 
-critic_chain = critic_prompt | llm | StrOutputParser()
-
-
-planner_prompt = ChatPromptTemplate.from_messages([
+strategic_planner_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a research strategist. Generate 5-8 focused research questions that structure inquiry into the topic comprehensively."),
     ("human", """Topic: {topic}
 
@@ -185,9 +181,10 @@ Generate focused research questions that will structure a comprehensive research
 
 Each question should be specific, measurable, and cover different aspects of the topic.""")
 ])
-planner_chain = planner_prompt | llm | StrOutputParser()
+planner_prompt = strategic_planner_prompt
+planner_chain = strategic_planner_prompt | llm | StrOutputParser()
 
-fact_checker_prompt = ChatPromptTemplate.from_messages([
+fact_auditor_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a rigorous fact-checker. Identify unsupported claims, verify statistics, check dates, and assess claim reliability."),
     ("human", """Review this research content for factual accuracy:
 
@@ -197,30 +194,28 @@ Provide:
 1. List of verified claims (with confidence 0-100%)
 2. Unverified or questionable claims
 3. Statistical accuracy assessment
-4. Overall reliability score (0-100%)
-
-Be specific and cite what makes claims reliable or unreliable.""")
+4. Overall reliability score (0-100%)""")
 ])
-fact_checker_chain = fact_checker_prompt | llm | StrOutputParser()
+fact_checker_prompt = fact_auditor_prompt
+fact_checker_chain = fact_auditor_prompt | llm | StrOutputParser()
 
-contrarian_prompt = ChatPromptTemplate.from_messages([
+dialectical_analysis_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a contrarian researcher. Challenge assumptions, find contradictions, and present alternative viewpoints."),
     ("human", """Based on this research analysis about {topic}:
 
 {analysis}
 
 Provide:
-1. Key assumptions made (list them)
+1. Key assumptions made
 2. Contradicting evidence or perspectives
 3. Alternative interpretations
 4. Weaknesses in the reasoning
-5. What might be missing
-
-Be specific and constructive.""")
+5. Missing dimensions""")
 ])
-contrarian_chain = contrarian_prompt | llm | StrOutputParser()
+contrarian_prompt = dialectical_analysis_prompt
+contrarian_chain = dialectical_analysis_prompt | llm | StrOutputParser()
 
-citation_prompt = ChatPromptTemplate.from_messages([
+source_reference_formatter_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a citation expert. Format all sources properly and create a professional reference list."),
     ("human", """Create a formal reference list from these sources:
 
@@ -228,16 +223,12 @@ citation_prompt = ChatPromptTemplate.from_messages([
 
 Format as:
 [1] Full Title - URL - Source Type - Quality Assessment
-[2] ...
-
-Also provide:
-- Total unique sources
-- Primary vs secondary breakdown
-- Source quality distribution""")
+[2] ...""")
 ])
-citation_chain = citation_prompt | llm | StrOutputParser()
+citation_prompt = source_reference_formatter_prompt
+citation_chain = source_reference_formatter_prompt | llm | StrOutputParser()
 
-multi_reader_prompt = ChatPromptTemplate.from_messages([
+cross_source_synthesis_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an expert multi-source analyst. Synthesize insights from multiple sources, identify consensus and conflicts."),
     ("human", """Analyze these multiple sources about "{topic}":
 
@@ -248,13 +239,12 @@ Provide:
 2. Unique insights per source
 3. Points of agreement and conflict
 4. Consensus level (0-100%)
-5. Source reliability ranking
-
-Link insights to specific sources.""")
+5. Source reliability ranking""")
 ])
-multi_reader_chain = multi_reader_prompt | llm | StrOutputParser()
+multi_reader_prompt = cross_source_synthesis_prompt
+multi_reader_chain = cross_source_synthesis_prompt | llm | StrOutputParser()
 
-confidence_prompt = ChatPromptTemplate.from_messages([
+analytical_confidence_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a research quality assessor. Calculate confidence based on multiple factors."),
     ("human", """Calculate research confidence for this project:
 
@@ -267,18 +257,12 @@ Factors:
 - Source agreement level: {agreement}/100
 - Data freshness: {freshness}/100
 
-Provide:
-1. Confidence score (0-10)
-2. Breakdown of contributing factors
-3. Reliability assessment
-4. Recommendations for improvement
-
 Formula: (sources*0.25 + quality*0.25 + facts*0.20 + agreement*0.15 + freshness*0.10) / 10""")
 ])
-confidence_chain = confidence_prompt | llm | StrOutputParser()
+confidence_prompt = analytical_confidence_prompt
+confidence_chain = analytical_confidence_prompt | llm | StrOutputParser()
 
-
-revision_prompt = ChatPromptTemplate.from_messages([
+manuscript_refinement_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a report revision specialist. Improve the report based on critical feedback to achieve quality standards."),
     ("human", """Original Report:
 {original_report}
@@ -289,39 +273,38 @@ Critic Feedback:
 Current Score: {current_score}/10
 Target Score: 8.0+
 
-Revise the report to address the feedback while maintaining factual integrity. Focus on:
-1. Addressing specific weaknesses mentioned
-2. Strengthening evidence-based claims
-3. Improving structure and clarity
-4. Adding missing analysis
-5. Ensuring professional tone
-
-Provide the revised report.""")
+Revise the report to address the feedback while maintaining factual integrity.""")
 ])
-revision_chain = revision_prompt | llm | StrOutputParser()
-claim_extractor_prompt = ChatPromptTemplate.from_messages([
+revision_prompt = manuscript_refinement_prompt
+revision_chain = manuscript_refinement_prompt | llm | StrOutputParser()
+
+factual_claim_extractor_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an elite research analyst. Extract exactly 3 to 5 key factual claims from the provided report that require independent verification. Respond in a clean, numbered list of claims, with absolutely no introduction or explanation."),
     ("human", "{report}")
 ])
-claim_extractor_chain = claim_extractor_prompt | llm | StrOutputParser()
+claim_extractor_prompt = factual_claim_extractor_prompt
+claim_extractor_chain = factual_claim_extractor_prompt | llm | StrOutputParser()
 
-claim_fidelity_prompt = ChatPromptTemplate.from_messages([
+claim_neutrality_auditor_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a claim fidelity auditor. Evaluate whether the extracted claims accurately and neutrally represent the underlying source text without distortion, exaggeration, or strawman framing.\nFor each claim, state if it is faithful (Yes/No) and provide a refined neutral version if needed."),
     ("human", "Claims to Audit:\n{claims}\n\nSource Research Text:\n{source_text}")
 ])
-claim_fidelity_chain = claim_fidelity_prompt | llm | StrOutputParser()
+claim_fidelity_prompt = claim_neutrality_auditor_prompt
+claim_fidelity_chain = claim_neutrality_auditor_prompt | llm | StrOutputParser()
 
-fact_verifier_prompt = ChatPromptTemplate.from_messages([
+empirical_verification_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are an unbiased fact-checker. Verify the claim below against the provided search evidence.\nClaim: {claim}\n\nEvidence:\n{evidence}\n\nEvaluate the claim based on the evidence. Respond in a clean JSON format (with no markdown code block formatting) containing exactly these three fields:\n- status: 'Verified' | 'Not Verified' | 'Partially Verified'\n- confidence: a number from 0 to 100\n- snippet: a short, specific supporting text snippet from the evidence"),
     ("human", "Verify this claim.")
 ])
-fact_verifier_chain = fact_verifier_prompt | llm | StrOutputParser()
+fact_verifier_prompt = empirical_verification_prompt
+fact_verifier_chain = empirical_verification_prompt | llm | StrOutputParser()
 
-grounding_prompt = ChatPromptTemplate.from_messages([
+citation_grounding_prompt = ChatPromptTemplate.from_messages([
     ("system", "You are a professional research editor. Ground the provided research report with inline citations using numbers like [1], [2], etc., corresponding to the verified evidence.\n\nReport:\n{report}\n\nVerified Evidence:\n{verification_results}\n\nRewrite the report to integrate the inline citations naturally. At the very end of the report, add a 'Citations & Sources' section listing each numbered citation, the source URL, and the exact supporting evidence snippet in the format:\n[1] Source Name (URL)\nEvidence: \"exact snippet\""),
     ("human", "Ground this report.")
 ])
-grounding_chain = grounding_prompt | llm | StrOutputParser()
+grounding_prompt = citation_grounding_prompt
+grounding_chain = citation_grounding_prompt | llm | StrOutputParser()
 
 STAGES = [
     {
@@ -399,5 +382,3 @@ STAGES = [
 ]
 
 STAGE_CONFIGS = {stage['id']: stage for stage in STAGES}
-
-

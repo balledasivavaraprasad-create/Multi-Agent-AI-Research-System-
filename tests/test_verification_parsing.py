@@ -3,7 +3,6 @@ import json
 import re
 
 def parse_verifier_output(raw_output: str) -> dict:
-    """Helper method replicating verdict JSON parsing logic from pipeline.py / server.py"""
     try:
         clean_json = raw_output.strip()
         if clean_json.startswith("```"):
