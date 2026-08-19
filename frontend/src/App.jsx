@@ -114,6 +114,31 @@ export default function App() {
     }
   }, [sessionJwtToken]);
 
+  useEffect(() => {
+    if (executionPhase !== 'streaming') return;
+
+    const progressAnimationInterval = setInterval(() => {
+      setActiveStageProgress(prevProgressMap => {
+        let isModified = false;
+        const updatedProgressMap = { ...prevProgressMap };
+        
+        Object.keys(stageExecutionStatus).forEach(stageIdentifier => {
+          if (stageExecutionStatus[stageIdentifier] === 'running') {
+            const currentPercentage = updatedProgressMap[stageIdentifier] || 15;
+            if (currentPercentage < 92) {
+              updatedProgressMap[stageIdentifier] = Math.min(92, currentPercentage + Math.floor(Math.random() * 6 + 4));
+              isModified = true;
+            }
+          }
+        });
+
+        return isModified ? updatedProgressMap : prevProgressMap;
+      });
+    }, 350);
+
+    return () => clearInterval(progressAnimationInterval);
+  }, [executionPhase, stageExecutionStatus]);
+
   const handleUserLogin = async (e) => {
     e.preventDefault();
     setIsAuthenticationPending(true);

@@ -76,13 +76,13 @@ def execute_research_workflow(target_topic: str) -> dict:
                 targeted_inquiry_queries.append(cleaned_query)
         if not targeted_inquiry_queries:
             targeted_inquiry_queries = [target_topic]
-        targeted_inquiry_queries = targeted_inquiry_queries[:4]
+        targeted_inquiry_queries = targeted_inquiry_queries[:3]
         
         def execute_single_search_query(search_query_text):
             execution_telemetry['tavily_searches'] += 1
             return web_search.invoke({"query": search_query_text})
             
-        with ThreadPoolExecutor(max_workers=4) as search_executor:
+        with ThreadPoolExecutor(max_workers=3) as search_executor:
             retrieved_evidence_corpus = list(search_executor.map(execute_single_search_query, targeted_inquiry_queries))
             
         extracted_source_references = []
@@ -145,7 +145,7 @@ def execute_research_workflow(target_topic: str) -> dict:
             cleaned_statement = re.sub(r'^\d+[\.\-\)]\s*', '', statement_line.strip()).strip('* ')
             if cleaned_statement and len(cleaned_statement) > 10:
                 parsed_claims.append(cleaned_statement)
-        parsed_claims = parsed_claims[:4]
+        parsed_claims = parsed_claims[:3]
         
         def verify_single_claim_item(claim_text):
             execution_telemetry['tavily_searches'] += 1
@@ -175,7 +175,7 @@ def execute_research_workflow(target_topic: str) -> dict:
                 "snippet": parsed_verdict.get("snippet", "")
             }
             
-        with ThreadPoolExecutor(max_workers=4) as verification_executor:
+        with ThreadPoolExecutor(max_workers=3) as verification_executor:
             verified_claim_dossiers = list(verification_executor.map(verify_single_claim_item, parsed_claims))
             
         confidence_values = [dossier["confidence"] for dossier in verified_claim_dossiers]
