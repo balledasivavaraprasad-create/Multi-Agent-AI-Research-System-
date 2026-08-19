@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import re
 from dotenv import load_dotenv
 
 try:
@@ -32,24 +31,15 @@ from tools import web_search, scrape_url
 
 load_dotenv()
 
-_CACHED_MODEL_POOL = None
-
 def initialize_generative_model_pool():
-    global _CACHED_MODEL_POOL
-    if _CACHED_MODEL_POOL is not None and len(_CACHED_MODEL_POOL) > 0:
-        return _CACHED_MODEL_POOL
-
     api_credential_keys = []
     for key_name in ["GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "GOOGLE_API_KEY_4"]:
         credential = os.getenv(key_name)
-        if credential and str(credential).strip() and str(credential).strip() != "placeholder_key":
-            clean_key = str(credential).strip().strip("'\"")
-            if clean_key not in api_credential_keys:
-                api_credential_keys.append(clean_key)
+        if credential and credential.strip() and credential.strip() != "placeholder_key":
+            api_credential_keys.append(credential.strip())
             
     if not api_credential_keys:
-        fallback_k = os.getenv("GOOGLE_API_KEY", "placeholder_key")
-        api_credential_keys = [str(fallback_k).strip().strip("'\"")]
+        api_credential_keys = [os.getenv("GOOGLE_API_KEY", "placeholder_key")]
 
     candidate_model_identifiers = [
         "gemini-2.5-flash",
@@ -63,68 +53,53 @@ def initialize_generative_model_pool():
                 model_inst = ChatGoogleGenerativeAI(
                     model=model_id,
                     google_api_key=api_key,
-                    temperature=0.1,
-                    max_retries=1,
+                    temperature=0,
+                    max_retries=0,
                     timeout=30,
                 )
                 active_model_pool.append(model_inst)
-            except Exception as init_err:
-                print(f"⚠️ Warning initializing model [{model_id}]: {init_err}")
+            except Exception:
+                pass
                 
-    if not active_model_pool:
-        primary_k = api_credential_keys[0] if api_credential_keys else "placeholder_key"
-        active_model_pool.append(ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=primary_k))
-
-    _CACHED_MODEL_POOL = active_model_pool
-    return _CACHED_MODEL_POOL
+    return active_model_pool
 
 get_llm_models_pool = initialize_generative_model_pool
 
 llm_pool = initialize_generative_model_pool()
-llm = llm_pool[0] if llm_pool else ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY", "placeholder_key"))
+llm = llm_pool[0] if llm_pool else ChatGoogleGenerativeAI(model="gemini-3.6-flash", google_api_key=os.getenv("GOOGLE_API_KEY", "placeholder_key"))
 
 def execute_llm_chain_with_fallback(prompt_template, input_parameters, telemetry_metrics=None):
     formatted_prompt = prompt_template.invoke(input_parameters)
     available_models = initialize_generative_model_pool()
     
-    last_encountered_error = None
-    for outer_pass in range(2):
-        for target_model in available_models:
-            for attempt in range(2):
-                try:
-                    model_response = target_model.invoke(formatted_prompt)
-                    if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
-                        input_tokens = model_response.usage_metadata.get('input_tokens', 0)
-                        output_tokens = model_response.usage_metadata.get('output_tokens', 0)
-                        telemetry_metrics['input_tokens'] += input_tokens
-                        telemetry_metrics['output_tokens'] += output_tokens
-                    response_content = model_response.content
-                    if isinstance(response_content, list):
-                        extracted_parts = [
-                            item['text'] if isinstance(item, dict) and 'text' in item else str(item)
-                            for item in response_content
-                        ]
-                        return "".join(extracted_parts)
-                    return str(response_content)
-                except Exception as exc:
-                    last_encountered_error = exc
-                    err_message = str(exc)
-                    
-                    retry_match = re.search(r'retry in ([0-9\.]+)s', err_message, re.IGNORECASE)
-                    if retry_match:
-                        delay_secs = float(retry_match.group(1))
-                        if delay_secs <= 10.0 and attempt == 0:
-                            time.sleep(min(3.0, delay_secs + 0.25))
-                            continue
-                    elif ("429" in err_message or "RESOURCE_EXHAUSTED" in err_message or "503" in err_message) and attempt == 0:
-                        time.sleep(1.2)
-                        continue
-                    break
-        if outer_pass == 0:
-            time.sleep(1.5)
+    encountered_error = None
+    for target_model in available_models:
+        try:
+            model_response = target_model.invoke(formatted_prompt)
+            if hasattr(model_response, 'usage_metadata') and model_response.usage_metadata and telemetry_metrics is not None:
+                input_tokens = model_response.usage_metadata.get('input_tokens', 0)
+                output_tokens = model_response.usage_metadata.get('output_tokens', 0)
+                telemetry_metrics['input_tokens'] += input_tokens
+                telemetry_metrics['output_tokens'] += output_tokens
+            response_content = model_response.content
+            if isinstance(response_content, list):
+                extracted_parts = []
+                for item in response_content:
+                    if isinstance(item, dict) and 'text' in item:
+                        extracted_parts.append(item['text'])
+                    elif isinstance(item, str):
+                        extracted_parts.append(item)
+                    else:
+                        extracted_parts.append(str(item))
+                return "".join(extracted_parts)
+            return str(response_content)
+        except Exception as exc:
+            model_identifier = getattr(target_model, 'model', 'gemini')
+            print(f"⚠️ Model [{model_identifier}] rate limit/API exception: {str(exc)[:120]}. Falling back...")
+            encountered_error = exc
+            time.sleep(0.2)
             
-    err_detail = str(last_encountered_error) if last_encountered_error is not None else "No models initialized in pool"
-    raise RuntimeError(f"All LLM models in fallback pool exhausted: {err_detail}")
+    raise RuntimeError(f"All LLM models in fallback pool exhausted: {str(encountered_error)}")
 
 invoke_llm_chain_with_fallback = execute_llm_chain_with_fallback
 
@@ -175,8 +150,10 @@ Score: X/10
 Strengths:
 - ...
 - ...
+- ...
 
 Actionable Suggestions for Report Improvement (For User):
+- ...
 - ...
 - ...
 
@@ -191,14 +168,16 @@ critic_prompt = evaluative_review_prompt
 critic_chain = evaluative_review_prompt | llm | StrOutputParser()
 
 strategic_planner_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a research strategist. Generate 4 to 5 focused research questions that structure inquiry into the topic comprehensively."),
+    ("system", "You are a research strategist. Generate 5-8 focused research questions that structure inquiry into the topic comprehensively."),
     ("human", """Topic: {topic}
 
 Generate focused research questions that will structure a comprehensive research project. Format:
 
 1. [Question 1]
 2. [Question 2]
-[...]""")
+[...]
+
+Each question should be specific, measurable, and cover different aspects of the topic.""")
 ])
 planner_prompt = strategic_planner_prompt
 planner_chain = strategic_planner_prompt | llm | StrOutputParser()
@@ -228,7 +207,8 @@ Provide:
 1. Key assumptions made
 2. Contradicting evidence or perspectives
 3. Alternative interpretations
-4. Weaknesses in reasoning""")
+4. Weaknesses in the reasoning
+5. Missing dimensions""")
 ])
 contrarian_prompt = dialectical_analysis_prompt
 contrarian_chain = dialectical_analysis_prompt | llm | StrOutputParser()
@@ -256,7 +236,8 @@ Provide:
 1. Common themes across sources
 2. Unique insights per source
 3. Points of agreement and conflict
-4. Consensus level (0-100%)""")
+4. Consensus level (0-100%)
+5. Source reliability ranking""")
 ])
 multi_reader_prompt = cross_source_synthesis_prompt
 multi_reader_chain = cross_source_synthesis_prompt | llm | StrOutputParser()
@@ -296,7 +277,7 @@ revision_prompt = manuscript_refinement_prompt
 revision_chain = manuscript_refinement_prompt | llm | StrOutputParser()
 
 factual_claim_extractor_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an elite research analyst. Extract exactly 3 key factual claims from the provided report that require independent verification. Respond in a clean, numbered list of claims, with absolutely no introduction or explanation."),
+    ("system", "You are an elite research analyst. Extract exactly 3 to 5 key factual claims from the provided report that require independent verification. Respond in a clean, numbered list of claims, with absolutely no introduction or explanation."),
     ("human", "{report}")
 ])
 claim_extractor_prompt = factual_claim_extractor_prompt
